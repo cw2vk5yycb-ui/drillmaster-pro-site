@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#121212">
 <meta name="author" content="Dixitkumar Suthar">
 <meta name="copyright" content="© 2026 Dixitkumar Suthar. All rights reserved.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,7 +20,7 @@
 <meta name="description" content="Drilling engineering formulas, kill and trip sheets, schematics and field reports.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: instrument-panel shell — fixed left rail of modules, working canvas on the right, bottom bar on phones. Pure black ground with a safety-orange accent. */
 :root{
@@ -382,6 +382,68 @@ details.navgrp summary:hover{background:var(--panel2)}
 }
 .lastracks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .lastracks .card{padding:12px}
+
+/* ===== DrillMaster glass theme: charcoal #121212, industrial orange #FF6B00, frosted cards ===== */
+:root{
+  --bg:#121212; --panel:#181818; --panel2:#1f1f1f; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#ffffff; --muted:#9a9a9f; --accent:#ff6b00; --accent-ink:#ffffff; --accent-soft:rgba(255,107,0,.13);
+  --glass:linear-gradient(155deg,rgba(255,255,255,.065),rgba(255,255,255,.018)); --glass2:rgba(255,255,255,.035);
+  --glow:0 0 0 1px rgba(255,107,0,.35),0 10px 40px -12px rgba(255,107,0,.45);
+  --f-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-disp:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:16px;
+}
+:root[data-theme="light"]{--glass:linear-gradient(155deg,rgba(255,255,255,.92),rgba(255,255,255,.7));--glass2:rgba(0,0,0,.025);--glow:0 0 0 1px rgba(194,80,10,.3),0 10px 30px -14px rgba(194,80,10,.35)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--glass:linear-gradient(155deg,rgba(255,255,255,.92),rgba(255,255,255,.7));--glass2:rgba(0,0,0,.025);--glow:0 0 0 1px rgba(194,80,10,.3),0 10px 30px -14px rgba(194,80,10,.35)}}
+body{background:radial-gradient(1200px 600px at 85% -10%,rgba(255,107,0,.10),transparent 60%),radial-gradient(900px 500px at -10% 110%,rgba(255,107,0,.06),transparent 60%),var(--bg);background-attachment:fixed;letter-spacing:-.005em}
+h1,h2,h3{font-weight:650;letter-spacing:-.02em}
+h1{font-size:32px}
+.eyebrow{letter-spacing:.12em}
+.card,.ro,.tbl,fieldset,.lastracks .card{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 12px 32px -18px rgba(0,0,0,.7)}
+.card.flat{background:var(--glass2)}
+.ro{border-radius:14px;padding:14px 16px}
+.ro .v{font-weight:600;letter-spacing:-.02em}
+.ro.key{border-color:rgba(255,107,0,.45);box-shadow:var(--glow)}
+.card.tile{transition:border-color .2s,transform .2s,box-shadow .2s}
+.card.tile:hover{border-color:rgba(255,107,0,.5);box-shadow:var(--glow);transform:translateY(-2px)}
+.tile .tic,.pitem .tic{background:linear-gradient(145deg,rgba(255,107,0,.22),rgba(255,107,0,.06));border:1px solid rgba(255,107,0,.25);border-radius:12px}
+.tx b{font-weight:600;letter-spacing:-.01em;font-size:15.5px}
+.side{background:rgba(18,18,18,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-right:1px solid var(--line)}
+.top{background:rgba(18,18,18,.6);backdrop-filter:blur(18px) saturate(140%)}
+:root[data-theme="light"] .side,:root[data-theme="light"] .top{background:rgba(255,255,255,.75)}
+.navgrp a[aria-current="page"]{background:linear-gradient(90deg,rgba(255,107,0,.18),rgba(255,107,0,.02));color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+.btn{border-radius:10px;font-weight:600;transition:border-color .15s,box-shadow .15s,transform .1s}
+.btn.pri{background:linear-gradient(180deg,#ff7d1f,#ff6b00 55%,#e65f00);border-color:#ff6b00;color:#fff;box-shadow:0 6px 20px -8px rgba(255,107,0,.7)}
+.btn.pri:hover{box-shadow:0 8px 26px -6px rgba(255,107,0,.8)}
+.btn:active{transform:translateY(1px)}
+input,select,textarea{background:rgba(0,0,0,.28);border-color:var(--line2);border-radius:10px}
+:root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] textarea{background:#fff}
+.ubtn{background:rgba(255,255,255,.04)}
+th{background:rgba(255,255,255,.03);backdrop-filter:blur(10px)}
+tr:hover td{background:rgba(255,107,0,.04)}
+.searchbtn{background:rgba(255,255,255,.04);border-radius:12px}
+.searchbtn.big{background:var(--glass);backdrop-filter:blur(14px)}
+.pill.info{background:rgba(255,107,0,.15)}
+.hero2 h1{font-size:50px;letter-spacing:-.035em;background:linear-gradient(90deg,var(--fg) 55%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.modal{background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
+.modal .card{background:rgba(26,26,26,.92)}
+:root[data-theme="light"] .modal .card{background:rgba(255,255,255,.96)}
+/* gauges */
+.gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.gauge{display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 12px 12px;text-align:center}
+.gauge svg{width:100%;max-width:200px;height:auto;overflow:visible}
+.gauge .gv{font:600 26px/1 var(--f-mono);letter-spacing:-.02em;fill:var(--fg)}
+.gauge .gu{font:500 11px var(--f-mono);fill:var(--muted)}
+.gauge .gt{font:500 9.5px var(--f-mono);fill:var(--muted)}
+.gauge .gl{font:600 11px/1.2 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:-6px}
+.gauge .ga{transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1),stroke .3s}
+.gauge.warn{border-color:rgba(255,210,63,.45)} .gauge.crit{border-color:rgba(255,77,77,.55);box-shadow:0 0 0 1px rgba(255,77,77,.3),0 10px 36px -12px rgba(255,77,77,.5)}
+.livedot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(76,195,138,.6);animation:pulse 1.6s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(76,195,138,0)}100%{box-shadow:0 0 0 0 rgba(76,195,138,0)}}
+.gauges.six{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media (max-width:1380px){.gauges.six{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .side,:root:not([data-theme="dark"]) .top{background:rgba(255,255,255,.75)}:root:not([data-theme="dark"]) input,:root:not([data-theme="dark"]) select,:root:not([data-theme="dark"]) textarea{background:#fff}:root:not([data-theme="dark"]) .modal .card{background:rgba(255,255,255,.96)}}
+@media (max-width:860px){.gauges.six{grid-template-columns:repeat(2,minmax(0,1fr))}.hero2 h1{font-size:36px}.gauges{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gauge .gv{font-size:22px}}
 </style>
 <div id="root"></div>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -1204,12 +1266,27 @@ function liveTick(){const L=LIVE;const p=L.pts[L.pts.length-1]||{t:0,depth:L.bas
   if(z('flow')>3.5)push('warn','Flow-out anomaly (z > 3.5)','Flow out well above its recent baseline. Check for influx or surface transfer.');
   if(z('tq')>3.5&&z('hook')>3)push('crit','Torque and hook-load anomaly','Rising torque and overpull with falling ROP: possible pack-off or differential sticking. Work pipe, check hole cleaning.');
 }
+/* ---------- radial gauges ---------- */
+const GCFG={rop:['ROP',0,200,'ft/hr',150,180,1],spp:['Standpipe',0,5000,'psi',4200,4700,0],hook:['Hook load',0,500,'klbf',400,460,0],tq:['Torque',0,30,'kft·lbf',20,25,1],mw:['Mud weight',8,18,'ppg',16,17,2],flow:['Flow out',0,100,'%',75,85,1],pit:['Pit volume',300,700,'bbl',540,600,0]};
+const gPt=(a,r)=>{const t=a*Math.PI/180;return [(100+r*Math.cos(t)).toFixed(2),(100+r*Math.sin(t)).toFixed(2)]};
+const gArc=r=>{const [x1,y1]=gPt(150,r),[x2,y2]=gPt(30,r);return `M${x1} ${y1}A${r} ${r} 0 1 1 ${x2} ${y2}`};
+function gauge(k,val){const [lab,mn,mx,u,w,c]=GCFG[k];const f=Math.max(0,Math.min(1,(val-mn)/(mx-mn)));const id='gg'+k;
+  const ticks=[0,.25,.5,.75,1].map(t=>{const a=150+240*t;const [x1,y1]=gPt(a,70),[x2,y2]=gPt(a,63);const [tx,ty]=gPt(a,52);return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--line2)" stroke-width="1.5"/><text class="gt" x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle">${fmt(mn+(mx-mn)*t,0)}</text>`}).join('');
+  const zone=(from,to,col)=>{const a1=150+240*(from-mn)/(mx-mn),a2=150+240*(to-mn)/(mx-mn);const [x1,y1]=gPt(a1,84),[x2,y2]=gPt(a2,84);return `<path d="M${x1} ${y1}A84 84 0 ${a2-a1>180?1:0} 1 ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity=".7"/>`};
+  return `<div class="card gauge" data-g="${k}"><svg viewBox="0 0 200 172" role="img" aria-label="${lab}"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="#ff9a3d"/><stop offset="1" stop-color="#ff6b00"/></linearGradient><filter id="${id}f" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+    <path d="${gArc(76)}" fill="none" stroke="var(--line)" stroke-width="12" stroke-linecap="round"/>${zone(w,c,'var(--warn)')}${zone(c,mx,'var(--crit)')}
+    <path class="ga" d="${gArc(76)}" pathLength="100" fill="none" stroke="url(#${id})" stroke-width="12" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="${(100-f*100).toFixed(2)}" filter="url(#${id}f)" opacity=".55"/>
+    <path class="ga gm" d="${gArc(76)}" pathLength="100" fill="none" stroke="url(#${id})" stroke-width="12" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="${(100-f*100).toFixed(2)}"/>${ticks}
+    <text class="gv" x="100" y="104" text-anchor="middle">${fmt(val,GCFG[k][6])}</text><text class="gu" x="100" y="124" text-anchor="middle">${u}</text></svg><div class="gl">${lab}</div></div>`}
+function gaugeSet(root,k,val){const el=root.querySelector(`[data-g="${k}"]`);if(!el)return;const [,mn,mx,,w,c,dp]=GCFG[k];const f=Math.max(0,Math.min(1,(val-mn)/(mx-mn)));
+  el.querySelectorAll('.ga').forEach(a=>{a.setAttribute('stroke-dashoffset',(100-f*100).toFixed(2));a.setAttribute('stroke',val>=c?'var(--crit)':val>=w?'var(--warn)':`url(#gg${k})`)});el.querySelector('.gv').textContent=fmt(val,dp);el.classList.toggle('warn',val>=w&&val<c);el.classList.toggle('crit',val>=c)}
+const liveSeed=()=>{if(!LIVE.pts.length){for(let i=0;i<60;i++)liveTick();LIVE.alerts=[]}};
 PAGES.live=v=>{
-  const L=LIVE;if(!L.pts.length){for(let i=0;i<60;i++)liveTick();L.alerts=[]}
+  const L=LIVE;liveSeed();
   v.innerHTML=head('Live dashboard','Real-time drilling parameters with threshold alerts and anomaly detection. This view runs on a simulated WITSML feed so you can see how alerts behave.',`<button class="btn" id="lvTog"></button>`)+
   `<p class="note info">Demo data. Connecting a real WITSML server or rig sensor feed needs a backend service, listed on the Roadmap page.</p>
   <div class="row"><span class="eyebrow">Simulate</span><button class="btn sm" data-m="kick">Kick</button><button class="btn sm" data-m="loss">Losses</button><button class="btn sm" data-m="stuck">Stuck pipe</button><button class="btn sm ghost" data-m="">Normal drilling</button><span class="muted" id="lvClock" style="font-size:13px"></span></div>
-  <div class="grid g4" id="lvTiles"></div><div class="grid g2"><div class="card"><h3 style="margin-bottom:8px">Pit volume</h3><div id="lvPit"></div></div><div class="card"><h3 style="margin-bottom:8px">Flow out</h3><div id="lvFlow"></div></div><div class="card"><h3 style="margin-bottom:8px">ROP</h3><div id="lvRop"></div></div><div class="card"><h3 style="margin-bottom:8px">Hook load and torque</h3><div id="lvHook"></div></div></div>
+  <div class="gauges" id="lvG">${['rop','spp','hook','tq'].map(k=>gauge(k,L.pts[L.pts.length-1][k])).join('')}</div><div class="grid g4" id="lvTiles"></div><div class="grid g2"><div class="card"><h3 style="margin-bottom:8px">Pit volume</h3><div id="lvPit"></div></div><div class="card"><h3 style="margin-bottom:8px">Flow out</h3><div id="lvFlow"></div></div><div class="card"><h3 style="margin-bottom:8px">ROP</h3><div id="lvRop"></div></div><div class="card"><h3 style="margin-bottom:8px">Hook load and torque</h3><div id="lvHook"></div></div></div>
   <div class="card stack"><h3>Alert timeline</h3><div class="tl" id="lvAl"></div></div>`;
   const sp=(k)=>{const pts=L.pts.slice(-40);const vals=pts.map(p=>p[k]);const mn=Math.min(...vals),mx=Math.max(...vals)||1;const W=120,H=28;return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="28" preserveAspectRatio="none"><path d="${vals.map((x,i)=>(i?'L':'M')+(i/(vals.length-1)*W).toFixed(1)+' '+(H-2-(x-mn)/((mx-mn)||1)*(H-4)).toFixed(1)).join('')}" fill="none" stroke="var(--accent)" stroke-width="1.6"/></svg>`};
   const paint=()=>{const q=L.pts[L.pts.length-1];const a=CSSV('--accent'),w2=CSSV('--warn');const tenAgo=L.pts[Math.max(0,L.pts.length-11)];const dPit=q.pit-tenAgo.pit;
@@ -1219,7 +1296,7 @@ PAGES.live=v=>{
     $('#lvPit').innerHTML=lineChart({series:[ser('pit',a,'Pit')],xLabel:'Minutes',yLabel:'bbl',h:200});$('#lvFlow').innerHTML=lineChart({series:[ser('flow',a,'Flow out')],xLabel:'Minutes',yLabel:'%',h:200});
     $('#lvRop').innerHTML=lineChart({series:[ser('rop',a,'ROP')],xLabel:'Minutes',yLabel:'ft/hr',h:200,ymin:0});$('#lvHook').innerHTML=lineChart({series:[{...ser('hook',a,'Hook load (klbf)'),area:false},{name:'Torque ×10 (kft·lbf)',color:w2,pts:pts.map(p=>[p.t-x0,p.tq*10])}],xLabel:'Minutes',yLabel:'',h:200});
     $('#lvAl').innerHTML=L.alerts.length?L.alerts.map(x=>`<div><span class="pill ${x.lvl}">${x.clock}</span><span><b>${esc(x.msg)}</b><br><span class="muted">Likely cause: ${esc(x.cause)}</span></span></div>`).join(''):'<p class="muted">No alerts. Use the Simulate buttons to trigger one.</p>';
-    $('#lvClock').textContent='Updated '+new Date().toTimeString().slice(0,8);$('#lvTog').textContent=L.on?'Pause live':'Resume live'};
+    ['rop','spp','hook','tq'].forEach(k=>gaugeSet(v,k,q[k]));$('#lvClock').textContent='Updated '+new Date().toTimeString().slice(0,8);$('#lvTog').textContent=L.on?'Pause live':'Resume live'};
   v.onclick=e=>{const b=e.target.closest('[data-m]');if(b){L.mode=b.dataset.m||null;L.modeAt=L.pts[L.pts.length-1].t;toast(L.mode?'Simulating '+b.textContent.toLowerCase():'Back to normal drilling')}};
   $('#lvTog').onclick=()=>{L.on=!L.on;paint()};
   const id=setInterval(()=>{if(L.on){liveTick();paint()}},1000);cleanup.push(()=>clearInterval(id));redraw=paint;paint();
@@ -2079,15 +2156,18 @@ document.addEventListener('keydown',e=>{const t=e.target;const typing=t&&/INPUT|
 /* ---------- home: launcher ---------- */
 const tile=k=>`<div class="card tile"><a href="#${k}" class="tlink"><span class="tic">${gico(MODG[k],20)}</span><span class="tx"><b>${esc(L(TITLES[k]))}</b><span>${esc(DESC[k]||'')}</span></span></a>${starBtn(k)}</div>`;
 PAGES.home=v=>{
+  liveSeed();
   const w=well(),pins=S.pins.filter(k=>TITLES[k]),rec=S.recent.filter(k=>TITLES[k]&&k!=='home'&&!pins.includes(k)).slice(0,4);
   v.innerHTML=`<section class="hero2"><div class="h2l"><div class="eyebrow">Field engineering platform</div><h1>DrillMaster Pro</h1><p class="muted">Formulas, well control sheets, schematics and reports for the rig. Pin what you use most and find anything with search.</p>
     <button class="searchbtn big" data-hs>${gico('search',19)}<span>Search ${Object.keys(TITLES).length-1} modules and ${F.length} formulas</span><kbd>/</kbd></button></div>
     <div class="card h2w"><div class="row" style="justify-content:space-between"><div class="eyebrow">Active well</div><span class="pill info">${esc(w.stage||'Planning')}</span></div><h2>${esc(w.name)}</h2><dl class="kv"><dt>Rig</dt><dd>${esc(w.rig||'—')}</dd><dt>Field</dt><dd>${esc(w.field||'—')}</dd><dt>Units</dt><dd>${S.sys==='metric'?'Metric / SI':'Oilfield (API)'}</dd></dl><a class="btn sm" href="#wells">Manage wells</a></div></section>
+  <section class="stack"><div class="row" style="justify-content:space-between"><div class="shead"><span class="livedot"></span><h2>Rig snapshot</h2><span class="muted">Simulated feed</span></div><a class="btn sm" href="#live">Open live dashboard</a></div><div class="gauges six" id="hG">${['rop','spp','hook','tq','mw','pit'].map(k=>gauge(k,LIVE.pts[LIVE.pts.length-1][k])).join('')}</div></section>
   <section class="stack"><div class="shead">${gico('star',18)}<h2>Pinned</h2></div>${pins.length?`<div class="grid tiles">${pins.map(tile).join('')}</div>`:'<p class="muted">Nothing pinned yet. Tap the star on any module to keep it here and at the top of the menu.</p>'}</section>
   ${rec.length?`<section class="stack"><div class="shead">${gico('clock',18)}<h2>Recent</h2></div><div class="grid tiles">${rec.map(tile).join('')}</div></section>`:''}
   ${NAV.map(([g,it])=>{const ks=it.map(i=>i[0]).filter(k=>k!=='home');return ks.length?`<section class="stack"><div class="shead">${gico(g,18)}<h2>${L(g)}</h2><span class="muted">${ks.length}</span></div><div class="grid tiles">${ks.map(tile).join('')}</div></section>`:''}).join('')}
   <p class="muted" style="font-size:12.5px;text-align:center">DrillMaster Pro · Developed by Dixitkumar Suthar · © 2026 Dixitkumar Suthar. All rights reserved.</p><p class="note">Calculations are aids for trained personnel. Confirm kill sheet and well control values with the driller, toolpusher and company procedures before acting on them.</p>`;
   $('[data-hs]',v).onclick=()=>openPalette();
+  const gid=setInterval(()=>{if(!LIVE.on)return;liveTick();const q=LIVE.pts[LIVE.pts.length-1];['rop','spp','hook','tq','mw','pit'].forEach(k=>gaugeSet(v,k,q[k]))},1500);cleanup.push(()=>clearInterval(gid));
 };
 
 /* ---------- roadmap ---------- */
