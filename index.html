@@ -485,6 +485,90 @@ input.warnin{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 .fcard .foot{flex-wrap:wrap;gap:8px}
 @media (max-width:860px){.syssw button{padding:0 9px;min-height:40px}}
 .fcard .ins .fld>.vmsg{position:static;grid-column:1/-1;justify-self:end;margin-top:-4px}
+
+/* ===== dashboard layout (icon rail, top bar, dashboard grid) ===== */
+.rail{display:none}
+.tbrand{display:none;align-items:center;gap:10px;text-decoration:none;color:var(--fg);flex:none}
+.tbrand svg{width:30px;height:30px}.tbrand b{font:700 18px var(--f-disp);letter-spacing:-.01em}
+.railtog{display:none}
+@media (min-width:861px){
+  .app.railed{grid-template-columns:76px minmax(0,1fr)}
+  .app.railed .side{display:none}
+  .app.railed .rail{display:flex;flex-direction:column;align-items:center;gap:6px;position:sticky;top:0;height:100vh;padding:14px 0;background:rgba(14,14,14,.85);backdrop-filter:blur(18px);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
+  .app.railed .tbrand{display:flex}
+  .railtog{display:inline-flex}
+  .app:not(.railed) .tbrand{display:none}
+}
+.rlogo{display:grid;place-items:center;margin-bottom:8px}
+.rbtn{width:46px;height:46px;flex:none;display:grid;place-items:center;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+.rbtn:hover{background:rgba(255,255,255,.06);color:var(--fg)}
+.rbtn.on{background:linear-gradient(160deg,#ff8a2b,#ff6b00);color:#fff;box-shadow:0 8px 22px -8px rgba(255,107,0,.8)}
+.rsep{width:28px;height:1px;background:var(--line2);margin:4px 0}
+.flyout{position:fixed;left:86px;z-index:60;width:300px;max-height:80vh;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:2px;background:rgba(24,24,24,.96)!important}
+.flyout a{display:flex;padding:9px 10px;border-radius:10px;text-decoration:none;color:var(--fg)}
+.flyout a:hover,.flyout a[aria-current]{background:var(--accent-soft)}
+.flyout .tx span{font-size:12.5px}
+:root[data-theme="light"] .flyout{background:rgba(255,255,255,.97)!important}
+.top{gap:14px}
+.unitsw{display:flex;align-items:center;gap:10px;flex:none;cursor:pointer}
+.unitsw .usl{font:600 13.5px var(--f-body)}
+#metSw{position:relative;width:46px;height:26px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.08);cursor:pointer;padding:0;transition:background .2s}
+#metSw i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#bbb;transition:transform .2s,background .2s}
+#metSw[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
+#metSw[aria-checked="true"] i{transform:translateX(20px);background:#fff}
+.top .searchbtn.wide{order:99;flex:0 1 300px;margin-left:4px}
+.top .spacer{order:1}.top .wellpick,.top .unitsw,.top #net,.top #saved,.top #themeBtn{order:2}
+.top .tbrand,.top .railtog{order:0}
+@media (max-width:1180px){.top #saved{display:none}.unitsw .eyebrow{display:none}}
+@media (max-width:860px){.unitsw .eyebrow,.unitsw .usl{display:none}.top .searchbtn.wide{order:0}.top .wellpick{order:1}}
+/* dashboard grid */
+.dash{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,6fr) minmax(0,3fr);grid-template-areas:"ov ov hist" "gauge calc hist" "al al al";gap:16px;align-items:stretch}
+.d-ov{grid-area:ov}.d-hist{grid-area:hist}.d-gauge{grid-area:gauge}.d-calc{grid-area:calc}.d-alerts{grid-area:al}
+.dc{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dch{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.dch h3{font-size:17px}
+.lvls{display:flex;gap:6px;flex-wrap:wrap}
+.lv{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font:600 12px var(--f-body);border:1px solid var(--line2);color:var(--muted);opacity:.55}
+.lv::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.lv.normal{color:var(--ok)}.lv.caution{color:var(--warn)}.lv.warning{color:var(--crit)}
+.lv.on{opacity:1;border-color:currentColor;background:color-mix(in srgb,currentColor 14%,transparent)}
+.ovs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ovs>div{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-right:1px solid var(--line);min-width:0}
+.ovs>div:last-child{border-right:0}
+.ovs b{font-size:22px;font-weight:650;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovs b small{font-size:12px;color:var(--muted);font-weight:500}.ovs>div>small{font-size:12px;color:var(--muted)}
+.hlist{display:flex;flex-direction:column;gap:8px}
+.hrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--fg);cursor:pointer;text-align:left;font:inherit}
+.hrow:hover{border-color:rgba(255,107,0,.5)}.hrow .tx{flex:1;min-width:0}.hrow .tx b{font-size:14px}.hrow .tx span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hrow svg{color:var(--muted);flex:none}
+.d-gauge #dG .gauge{border:0;background:none;box-shadow:none;padding:0;backdrop-filter:none}
+.d-gauge #dG .gauge .gl{display:none}
+.qgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.qins,.qres{display:flex;flex-direction:column;gap:12px}
+.qin label{font-size:13.5px;color:var(--muted);font-weight:500}
+.qnum{width:150px;flex:none}.qnum input{min-height:36px;text-align:right;font:600 14px var(--f-mono);padding:0 8px}.qnum .u{min-height:36px;font-size:12px;min-width:52px;justify-content:center}
+.qin input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;min-height:6px;padding:0;margin:12px 0 2px;border:0;border-radius:6px;background:linear-gradient(90deg,var(--accent) var(--p,50%),rgba(255,255,255,.12) var(--p,50%));box-shadow:none}
+.qin input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:4px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer}
+.qin input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:4px solid var(--accent);cursor:pointer}
+.qerr{color:var(--crit);font-size:12.5px;margin-top:4px}
+.qr{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.qr b{font-size:14px;display:block}.qr small{font-size:12px;color:var(--muted)}
+.qv{font-size:20px;font-weight:650;white-space:nowrap}.qv small{font-size:12px;color:var(--muted);font-weight:500}
+.qr.warn{border-color:rgba(255,210,63,.5)}.qr.warn .qv{color:var(--warn)}
+.qr.crit{border-color:rgba(255,77,77,.6);background:rgba(255,77,77,.07)}.qr.crit .qv{color:var(--crit)}
+.qbar{position:relative;height:8px;border-radius:6px;background:rgba(255,77,77,.35);margin-top:10px}
+.qbar span{position:absolute;top:0;bottom:0;background:rgba(76,195,138,.45);border-radius:6px}
+.qbar i{position:absolute;top:-4px;width:4px;height:16px;margin-left:-2px;border-radius:2px;background:#fff;box-shadow:0 0 0 2px var(--accent);z-index:1}
+.ticker{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:12px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory}
+.tk{scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);border-left:4px solid var(--muted);background:rgba(255,255,255,.03);min-width:0}
+.tk b{display:flex;align-items:center;gap:8px;font-size:14px}.tk a,.tk span{color:var(--fg);font-size:13.5px;text-decoration:none}.tk a:hover{color:var(--accent)}
+.tk.crit{border-color:rgba(255,77,77,.5);border-left-color:var(--crit);background:rgba(255,77,77,.08)}.tk.crit b{color:var(--crit)}
+.tk.warn{border-color:rgba(255,210,63,.4);border-left-color:var(--warn);background:rgba(255,210,63,.06)}.tk.warn b{color:var(--warn)}
+.tk.ok{border-left-color:var(--ok)}.tk.ok b{color:var(--ok)}
+.tk .btn.sm{min-height:28px;padding:0 8px}
+@media (max-width:1240px){.dash{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);grid-template-areas:"ov ov" "gauge calc" "hist calc" "al al"}}
+@media (max-width:980px){.dash{grid-template-columns:minmax(0,1fr);grid-template-areas:"ov" "calc" "gauge" "al" "hist"}.qgrid{grid-template-columns:minmax(0,1fr)}.ovs{grid-template-columns:repeat(2,minmax(0,1fr))}.ovs>div:nth-child(2){border-right:0}.ovs>div:nth-child(-n+2){border-bottom:1px solid var(--line)}}
+@media (max-width:480px){.ovs b{font-size:18px}.qnum{width:132px}}
+@media (min-width:861px){.app.railed #view,.app.railed #histbox{max-width:1640px}}
+@media (max-width:860px){.top .searchbtn.wide{flex:0 0 46px;width:46px;margin-left:0}.top .wellpick{flex:1 1 auto;min-width:0}.top .unitsw{gap:0}.top #metSw{width:50px;height:30px}.top #metSw i{width:24px;height:24px}.top #metSw[aria-checked="true"] i{transform:translateX(20px)}}
 </style>
 <div id="root"></div>
 <script type="application/json" id="formula-data">
@@ -3253,6 +3337,113 @@ document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.c
   const list=all[f.id]||[];if(!list.length)return toast('No presets yet for this formula. Use Save preset.');
   const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h2>Presets · ${esc(LN(f))}</h2><div class="stack" style="gap:6px">${list.map((p,i)=>`<div class="row" style="flex-wrap:nowrap"><button class="btn" style="flex:1;justify-content:flex-start" data-pl="${i}">${esc(p.name)}</button><button class="btn sm ghost danger" data-pd="${i}" aria-label="Delete preset">✕</button></div>`).join('')}</div><button class="btn ghost" data-px>Close</button></div>`;document.body.appendChild(m);
   m.onclick=ev=>{if(ev.target===m||ev.target.closest('[data-px]'))return m.remove();const l=ev.target.closest('[data-pl]'),d=ev.target.closest('[data-pd]');if(l){loadVals(card,list[+l.dataset.pl].vals);m.remove();toast('Preset loaded')}if(d){list.splice(+d.dataset.pd,1);store.set('fpresets',all);m.remove()}}});
+/* ================= 15. Dashboard layout: icon rail, top bar, real-time dashboard, history page ================= */
+GI.history='<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>';
+GI.settings='<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>';
+GI.dash='<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>';
+GI.alert='<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>';
+GI.chev='<path d="M9 6l6 6-6 6"/>';GI.save='<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8M8 21v-7h8v7"/>';GI.calc=GI.Calculators;
+
+/* ---------- history page (calculations) ---------- */
+PAGES.history=v=>{
+  const draw=()=>{const h=store.get('fhist',[]);
+    v.innerHTML=head('History','Every calculation you have made on this device, newest first. Open one to reload its inputs. Kill sheets, trip sheets, DDRs and BOP tests also keep signed report history inside their own modules.',`<button class="btn" id="hsExp">Export</button><button class="btn ghost danger" id="hsClr">Clear</button>`)+
+    `<div class="tbl"><table><thead><tr><th>When</th><th>Calculation</th><th>Result</th><th></th></tr></thead><tbody>${h.map((x,i)=>{const r=histRow(x);return r?`<tr><td class="mono">${new Date(x.t).toLocaleString()}</td><td>${esc(r.name)}</td><td class="mono">${esc(r.res)}</td><td><div class="row" style="flex-wrap:nowrap"><button class="btn sm" data-ho="${i}">Open</button><button class="btn sm ghost danger" data-hd="${i}" aria-label="Delete">✕</button></div></td></tr>`:''}).join('')||'<tr><td colspan="4" class="muted">No calculations yet. Use the dashboard or any formula; results are saved a few seconds after you stop typing.</td></tr>'}</tbody></table></div>
+    <div class="row"><a class="btn" href="#versions">Version history</a><a class="btn" href="#security">Activity log</a></div>`;
+    $('#hsClr').onclick=async()=>{if(await ask({title:'Clear calculation history?',ok:'Clear',danger:true})){store.del('fhist');draw()}};
+    $('#hsExp').onclick=()=>exportDialog({title:'Calculation history',file:'Calculation_History',build:()=>({title:'Calculation history',file:'Calculation_History',tables:[{title:'History',head:['When','Calculation','Result'],body:store.get('fhist',[]).map(x=>{const r=histRow(x);return r?[new Date(x.t).toLocaleString(),r.name,r.res]:null}).filter(Boolean)}]})});
+    v.onclick=e=>{const o=e.target.closest('[data-ho]'),d=e.target.closest('[data-hd]');const h2=store.get('fhist',[]);if(o)histOpen(h2[+o.dataset.ho]);if(d){h2.splice(+d.dataset.hd,1);store.set('fhist',h2);draw()}}};draw()};
+function histRow(x){if(x.id==='quick'){const u=sysUnit('dens');return{name:'Real-time calculation · '+fmt(fromB('len',sysUnit('len'),x.vals.tvd),0)+' '+sysUnit('len'),res:'ECD '+fmt(fromB('dens',u,x.out[1]),2)+' '+u}}
+  const f=F.find(y=>y.id===x.id);if(!f)return null;const u=isDim(x.out[2])?sysUnit(x.out[2]):x.out[2];return{name:LN(f),res:x.out[0]+' '+fmt(isDim(x.out[2])?fromB(x.out[2],u,x.out[1]):x.out[1])+' '+u}}
+function histOpen(x){if(!x)return;if(x.id==='quick'){store.set(wkey('qcalc'),x.vals);if(route()==='home')render();else location.hash='#home';toast('Calculation loaded')}else openFormula(x.id,x.vals)}
+
+/* ---------- icon rail, top bar and bottom bar ---------- */
+const railOn=()=>S.rail!==false;
+function railHtml(){const cur=route();const grp=MODG[cur];const it=(k,ic,label,act)=>`<button class="rbtn${act?' on':''}" data-rail="${k}" aria-label="${esc(label)}" title="${esc(label)}">${gico(ic,21)}</button>`;
+  return `<a class="rlogo" href="#home" aria-label="DrillMaster Pro home">${LOGO}</a>${it('#home','dash','Dashboard',cur==='home')}${it('search','search','Search')}<span class="rsep"></span>${NAV.map(([g])=>it('g:'+g,g,L(g),grp===g&&cur!=='home')).join('')}<span style="flex:1"></span>${it('#history','history','History',cur==='history')}${it('#settings','settings','Settings',cur==='settings')}${it('expand','menu','Show full menu')}`}
+function flyout(g,btn){closeFly();const items=(NAV.find(x=>x[0]===g)||[0,[]])[1];const f=document.createElement('div');f.className='flyout card';f.setAttribute('role','menu');
+  f.innerHTML=`<div class="ghead">${gico(g,15)}<span>${L(g)}</span></div>${items.map(([k])=>`<a role="menuitem" href="#${k}"${route()===k?' aria-current="page"':''}><span class="tx"><b>${esc(L(TITLES[k]))}</b><span>${esc(DESC[k]||'')}</span></span></a>`).join('')}`;
+  document.body.appendChild(f);const r=btn.getBoundingClientRect();f.style.top=Math.max(12,Math.min(r.top-10,innerHeight-f.offsetHeight-12))+'px';f.addEventListener('click',e=>{if(e.target.closest('a'))closeFly()})}
+function closeFly(){$$('.flyout').forEach(x=>x.remove())}
+document.addEventListener('click',e=>{if(!e.target.closest('.flyout,.rbtn'))closeFly()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFly()});
+function applyRail(){const app=$('.app');if(!app)return;app.classList.toggle('railed',railOn());const r=$('#rail');if(r)r.innerHTML=railHtml()}
+(()=>{const sh0=shell;shell=function(){sh0.apply(this,arguments);const app=$('.app');
+  const rail=document.createElement('nav');rail.className='rail';rail.id='rail';rail.setAttribute('aria-label','Main');app.prepend(rail);
+  rail.onclick=e=>{const b=e.target.closest('[data-rail]');if(!b)return;const k=b.dataset.rail;if(k==='search')return openPalette();if(k==='expand'){S.rail=false;saveS();applyRail();return}if(k.startsWith('#')){location.hash=k;return}flyout(k.slice(2),b)};
+  // top bar: brand, rail toggle, metric switch, search on the right
+  const top=$('.top');const brand=document.createElement('a');brand.className='tbrand';brand.href='#home';brand.innerHTML=`${LOGO}<b>DrillMaster</b>`;
+  const tog=document.createElement('button');tog.className='btn icon ghost railtog';tog.setAttribute('aria-label','Collapse or expand menu');tog.innerHTML=ico('menu');tog.onclick=()=>{S.rail=!railOn();saveS();applyRail()};
+  top.prepend(brand);top.prepend(tog);
+  const sw=$('#sysSw');if(sw){const lab=document.createElement('label');lab.className='unitsw';lab.innerHTML=`<span class="eyebrow">Instant</span><span class="usl">Metric</span><button type="button" role="switch" id="metSw" aria-checked="${S.sys==='metric'}" aria-label="Metric units"><i></i></button>`;sw.replaceWith(lab);$('#metSw').onclick=()=>{setSys(S.sys==='metric'?'oilfield':'metric')}}
+  const sb=$('.top .searchbtn.wide');if(sb){sb.querySelector('span').textContent='Global search';$('.top').appendChild(sb)}
+  // bottom bar on phones
+  const bn=$('.bnav');if(bn){bn.innerHTML=`<a href="#home" data-k="home">${gico('dash',22)}${L('Dashboard')}</a><a href="#formulas" data-k="formulas">${gico('calc',22)}${L('Calculations')}</a><a href="#kill" data-k="kill">${ico('kill')}${L('Kill sheet')}</a><a href="#history" data-k="history">${gico('history',22)}${L('History')}</a><button id="moreBtn2">${ico('menu')}${L('More')}</button>`;$('#moreBtn2').onclick=()=>{$('#side').classList.add('open');$('#scrim').classList.add('open')}}
+  applyRail()}})();
+const _syncSys=syncSysSw;syncSysSw=function(){_syncSys();const m=$('#metSw');if(m)m.setAttribute('aria-checked',S.sys==='metric')};
+(()=>{const r0=render;render=function(){r0.apply(this,arguments);applyRail();const k=route();$$('.bnav [data-k]').forEach(a=>a.toggleAttribute('aria-current',a.dataset.k===k));$$('.bnav [data-k]').forEach(a=>{if(a.dataset.k===k)a.setAttribute('aria-current','page')})}})();
+
+/* ---------- real-time dashboard on the home page ---------- */
+const QDEF=()=>{const k=Object.assign({},KDEF,store.get(wkey('kill'),{}));return{mw:k.omw||10,tvd:k.tvd||10000,apl:250,pp:+(k.omw-0.6).toFixed(1)||9.4,fg:k.lot||14.5}};
+const QR={mw:[6,20,0.1],tvd:[0,30000,10],apl:[0,2000,5],pp:[6,20,0.1],fg:[8,22,0.1]};
+const QDIM={mw:'dens',tvd:'len',apl:'pres',pp:'dens',fg:'dens'};
+const QLAB={mw:'Mud density',tvd:'True vertical depth',apl:'Annular friction loss',pp:'Pore pressure (EMW)',fg:'Fracture gradient (EMW)'};
+function qcalc(q){const r={};r.hp=0.052*q.mw*q.tvd;r.bhp=r.hp+q.apl;r.ecd=q.tvd>0?q.mw+q.apl/(0.052*q.tvd):NaN;r.pf=0.052*q.pp*q.tvd;r.ob=r.hp-r.pf;r.mf=q.fg-r.ecd;
+  const bad=[];if(!(q.tvd>0))bad.push(['tvd','Impossible input: depth must be above zero']);if(!(q.mw>0))bad.push(['mw','Impossible input: density must be above zero']);if(q.fg<=q.pp)bad.push(['fg','Impossible input: fracture gradient must exceed pore pressure']);if(q.apl<0)bad.push(['apl','Impossible input: friction cannot be negative']);
+  r.bad=bad;r.lvl=bad.length?'bad':(r.ob<0||r.ecd>=q.fg)?'warning':(r.ob<100||r.mf<0.3||q.mw<q.pp+0.2)?'caution':'normal';
+  r.msgs=[];if(!bad.length){if(r.ob<0)r.msgs.push(['crit','Underbalanced by '+fmt(-r.ob,0)+' psi: hydrostatic is below pore pressure. Kick risk.']);if(r.ecd>=q.fg)r.msgs.push(['crit','ECD at or above the fracture gradient: losses likely while circulating.']);else if(r.mf<0.3)r.msgs.push(['warn','Less than 0.3 ppg between ECD and fracture gradient.']);if(r.ob>=0&&r.ob<100)r.msgs.push(['warn','Overbalance under 100 psi: swab or connection gas could start a kick.'])}return r}
+function dashAlerts(q,r){const A=[];r.msgs.forEach(m=>A.push([m[0],'Real-time calculation',m[1],'#home']));
+  (LIVE.alerts||[]).slice(0,2).forEach(a=>A.push([a.lvl==='crit'?'crit':'warn','Live feed · '+a.clock,a.msg+' — '+a.cause,'#live']));
+  store.get('maint',[]).forEach(m=>{const due=m.last+m.int-m.hrs;if(due<m.int*0.1)A.push([due<0?'crit':'warn','Maintenance',`${m.n}: service ${due<0?'overdue by '+fmt(-due,0):'due in '+fmt(due,0)} hr`,'#maint'])});
+  const lim=new Date(Date.now()+60*864e5).toISOString().slice(0,10);store.get('certs',[]).forEach(c=>{if(c.exp&&c.exp<=lim)A.push([c.exp<today()?'crit':'warn','Certificates',`${c.p}: ${c.cert} ${c.exp<today()?'expired':'expires'} ${c.exp}`,'#training'])});
+  store.get(wkey('tasks'),[]).forEach(t=>{if(t.st!=='Done'&&t.due&&t.due<today())A.push(['warn','Overdue task',t.t,'#tasks'])});
+  const bt=store.get(wkey('boptest'),null);if(bt&&bt.rows&&bt.rows.some(x=>x.res==='Fail'))A.push(['crit','BOP test','A component failed its last pressure test','#boptest']);
+  return A.filter(a=>!DISMISS.has(a[2]))}
+const DISMISS=new Set();
+(()=>{const h0=PAGES.home;PAGES.home=v=>{h0(v);const hero=$('.hero2',v);let custom=null;if(hero){custom=hero.querySelector('.h2l>.btn');hero.closest('section')?hero.closest('section').remove():hero.remove()}
+  const key=wkey('qcalc');let q=Object.assign(QDEF(),store.get(key,{}));const w=well();const sys=S.sys;
+  const ddr=store.get(wkey('ddr'),null);const kd=Object.assign({},KDEF,store.get(wkey('kill'),{}));const depth=ddr&&ddr.d1?ddr.d1:kd.md;const live=LIVE.pts[LIVE.pts.length-1]||{};
+  const D=(dim,x,dp)=>DN(dim,x,sys,dp),U=dim=>sysUnit(dim,sys);
+  const sec=document.createElement('section');sec.className='dash';
+  sec.innerHTML=`
+  <div class="card dc d-ov"><div class="dch"><h3>Active well overview</h3><div class="lvls" id="dLv"><span class="lv normal">Normal</span><span class="lv caution">Caution</span><span class="lv warning">Warning</span></div></div>
+    <div class="ovs"><div><span class="eyebrow">Well name</span><b>${esc(w.name)}</b><small>${esc(w.rig||'')} ${w.stage?'· '+esc(w.stage):''}</small></div><div><span class="eyebrow">Depth (MD)</span><b class="mono">${D('len',depth,0)}<small> ${U('len')}</small></b><small>${ddr?'From DDR '+esc(ddr.date):'From kill sheet'}</small></div><div><span class="eyebrow">ROP</span><b class="mono" id="dRop">${DN('rop',live.rop||0,sys,1)}<small> ${U('rop')}</small></b><small>Live feed (demo)</small></div><div><span class="eyebrow">Mud weight</span><b class="mono" id="dMw">${D('dens',q.mw,2)}<small> ${U('dens')}</small></b><small>Real-time calculation</small></div></div></div>
+  <div class="card dc d-hist"><div class="dch"><h3>Calculation history</h3><a class="btn sm ghost" href="#history" aria-label="Open history">${gico('chev',16)}</a></div>
+    <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:13px">Save calculation</span><div class="row" style="gap:6px"><button class="btn sm" id="dSave">Save</button><button class="btn sm" id="dLoad">Load</button></div></div><div class="hlist" id="dHist"></div><button class="btn" id="dSaveLoad" style="margin-top:auto">Save and load</button></div>
+  <div class="card dc d-gauge"><div class="dch"><h3>ECD in the mud window</h3><span class="pill" id="dPill"></span></div><div id="dG"></div>
+    <div class="lvls"><span class="lv normal">Normal</span><span class="lv caution">Caution</span><span class="lv warning">Warning</span></div>
+    <dl class="kv" style="font-size:13.5px"><dt>Well name</dt><dd>${esc(w.name)}</dd><dt>Depth (TVD)</dt><dd id="dGt"></dd><dt>Mud weight</dt><dd id="dGm"></dd></dl><a class="btn pri" href="#kill" style="margin-top:auto">Open kill sheet</a></div>
+  <div class="card dc d-calc"><div class="dch"><h3>Real-time calculations</h3><span class="pill" id="dState"></span></div>
+    <div class="qgrid"><div class="qins">${Object.keys(QR).map(k=>`<div class="qin" data-q="${k}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><label for="q-${k}">${QLAB[k]}</label><div class="inrow qnum"><input type="number" step="any" inputmode="decimal" id="q-${k}" data-qk="${k}"><span class="u">${U(QDIM[k])}</span></div></div><input type="range" data-qr="${k}" min="${QR[k][0]}" max="${QR[k][1]}" step="${QR[k][2]}" aria-label="${QLAB[k]} slider"><p class="qerr" hidden></p></div>`).join('')}</div>
+    <div class="qres" id="dRes"></div></div>
+    <div class="row" style="margin-top:auto"><button class="btn pri" id="dCalcSave" style="flex:1">Save calculation</button><a class="btn" href="#formulas" style="flex:1">All formulas</a></div></div>
+  <div class="card dc d-alerts"><div class="dch"><h3>Safety alerts and warnings</h3><span class="muted" id="dAn" style="font-size:13px"></span></div><div class="ticker" id="dAl"></div></div>`;
+  v.prepend(sec);if(custom){custom.classList.add('sm');custom.style.alignSelf='flex-start';sec.after(custom)}
+  const set=(k,base)=>{q[k]=base;store.set(key,q);paint()};
+  const paint=()=>{const r=qcalc(q);
+    Object.keys(QR).forEach(k=>{const inp=$('#q-'+k,sec),sl=$(`[data-qr="${k}"]`,sec);if(document.activeElement!==inp)inp.value=fmtIn(+fromB(QDIM[k],U(QDIM[k]),q[k]).toFixed(QDIM[k]==='len'?0:3));sl.value=q[k];sl.style.setProperty('--p',((q[k]-QR[k][0])/(QR[k][1]-QR[k][0])*100)+'%');
+      const b=r.bad.find(x=>x[0]===k);const pe=$(`[data-q="${k}"] .qerr`,sec);pe.hidden=!b;pe.textContent=b?b[1]:'';inp.classList.toggle('bad',!!b)});
+    const L2={normal:'Normal',caution:'Caution',warning:'Warning',bad:'Impossible input'};const cls={normal:'ok',caution:'warn',warning:'crit',bad:'crit'}[r.lvl];
+    $('#dState',sec).className='pill '+cls;$('#dState',sec).textContent=L2[r.lvl];$('#dPill',sec).className='pill '+cls;$('#dPill',sec).textContent=L2[r.lvl];
+    $$('.lv',sec).forEach(x=>x.classList.toggle('on',x.classList.contains(r.lvl)||(r.lvl==='bad'&&x.classList.contains('warning'))));
+    const win=(x)=>Math.max(0,Math.min(100,(x-(q.pp-1))/((q.fg+1)-(q.pp-1))*100));
+    const card=(t,sub,val,unit,pos,lv)=>`<div class="qr ${lv}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div><b>${t}</b><small>${sub}</small></div><span class="qv mono">${val}<small> ${unit}</small></span></div>${pos==null?'':`<div class="qbar"><i style="left:${pos}%"></i><span style="left:${win(q.pp)}%;width:${win(q.fg)-win(q.pp)}%"></span></div>`}</div>`;
+    const ok=!r.bad.length;
+    $('#dRes',sec).innerHTML=card('Bottom-hole pressure','Static, hydrostatic only',ok?D('pres',r.hp,0):'—',U('pres'),null,'')+card('Circulating BHP','Hydrostatic + annular friction',ok?D('pres',r.bhp,0):'—',U('pres'),null,'')+
+      card('Equivalent circulating density','Marker in the pore–fracture window',ok?D('dens',r.ecd,2):'—',U('dens'),ok?win(r.ecd):null,ok&&r.ecd>=q.fg?'crit':ok&&r.mf<0.3?'warn':'')+card('Overbalance','Hydrostatic − pore pressure',ok?D('pres',r.ob,0):'—',U('pres'),null,ok&&r.ob<0?'crit':ok&&r.ob<100?'warn':'')+card('Margin to fracture','Fracture gradient − ECD',ok?fmt(fromB('dens',U('dens'),q.fg)-fromB('dens',U('dens'),r.ecd),2):'—',U('dens'),null,ok&&r.mf<0?'crit':ok&&r.mf<0.3?'warn':'');
+    GCFG.decd=['ECD',+(q.pp-1).toFixed(1),+(q.fg+1).toFixed(1),'ppg',+(q.fg-0.3).toFixed(2),q.fg,2];if(!$('#dG [data-g]',sec)||$('#dG',sec).dataset.k!==q.pp+'|'+q.fg){$('#dG',sec).dataset.k=q.pp+'|'+q.fg;$('#dG',sec).innerHTML=gauge('decd',ok?r.ecd:q.mw)}gaugeSet(sec,'decd',ok?r.ecd:q.mw);
+    const gv=$('#dG .gv',sec);if(gv)gv.textContent=ok?D('dens',r.ecd,2):'—';const gu=$('#dG .gu',sec);if(gu)gu.textContent=U('dens');
+    $('#dGt',sec).textContent=D('len',q.tvd,0)+' '+U('len');$('#dGm',sec).textContent=D('dens',q.mw,2)+' '+U('dens');$('#dMw',sec).innerHTML=`${D('dens',q.mw,2)}<small> ${U('dens')}</small>`;
+    const A=dashAlerts(q,r);$('#dAn',sec).textContent=A.length?A.length+' active':'';
+    $('#dAl',sec).innerHTML=A.length?A.map(a=>`<div class="tk ${a[0]}"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><b>${gico('alert',16)} ${esc(a[1])}</b><button class="btn sm ghost" data-dx="${esc(a[2])}" aria-label="Dismiss">✕</button></div><a href="${a[3]}">${esc(a[2])}</a></div>`).join(''):`<div class="tk ok"><b>${gico('alert',16)} All clear</b><span>No safety alerts for ${esc(w.name)}.</span></div>`;
+    histPanel()};
+  const histPanel=()=>{const h=store.get('fhist',[]).slice(0,6);$('#dHist',sec).innerHTML=h.map((x,i)=>{const r=histRow(x);return r?`<button class="hrow" data-hi="${i}"><span class="tx"><b>${esc(r.name)}</b><span>${new Date(x.t).toLocaleString()} · ${esc(r.res)}</span></span>${gico('chev',16)}</button>`:''}).join('')||'<p class="muted" style="font-size:13px">No calculations saved yet.</p>'};
+  const saveQ=()=>{const r=qcalc(q);if(r.bad.length)return toast('Fix the impossible inputs first');const h=store.get('fhist',[]);h.unshift({sig:'quick'+JSON.stringify(q)+Date.now(),id:'quick',t:Date.now(),vals:Object.assign({},q),out:['ECD',r.ecd,'dens']});h.length=Math.min(h.length,80);store.set('fhist',h);histPanel();toast('Calculation saved')};
+  sec.oninput=e=>{const t=e.target;if(t.dataset.qr){set(t.dataset.qr,+t.value)}else if(t.dataset.qk){const k=t.dataset.qk;const n=num(t.value);if(Number.isFinite(n))set(k,toB(QDIM[k],U(QDIM[k]),n));else{t.classList.add('bad')}}};
+  sec.onclick=e=>{const d=e.target.closest('[data-dx]');if(d){DISMISS.add(d.dataset.dx);paint();return}const hi=e.target.closest('[data-hi]');if(hi){histOpen(store.get('fhist',[])[+hi.dataset.hi]);return}};
+  $('#dSave',sec).onclick=saveQ;$('#dCalcSave',sec).onclick=saveQ;$('#dLoad',sec).onclick=()=>histModal();$('#dSaveLoad',sec).onclick=()=>{location.hash='#history'};
+  paint();const id=setInterval(()=>{const lp=LIVE.pts[LIVE.pts.length-1];const e=$('#dRop',sec);if(lp&&e)e.innerHTML=`${DN('rop',lp.rop,sys,1)}<small> ${U('rop')}</small>`},2000);cleanup.push(()=>clearInterval(id));
+}})();
+(()=>{const ov=NAV.find(x=>x[0]==='Overview');if(ov&&!ov[1].find(x=>x[0]==='history'))ov[1].push(['history','History']);TITLES.history='History';MODG.history='Overview';DESC.history='Every calculation you have made, ready to reopen';TITLES.home='Dashboard';const h=ov&&ov[1].find(x=>x[0]==='home');if(h)h[1]='Dashboard';Object.assign(HI,{Dashboard:'डैशबोर्ड',History:'इतिहास',Calculations:'गणनाएँ'})})();
 
 shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
