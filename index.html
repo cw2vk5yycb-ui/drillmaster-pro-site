@@ -444,6 +444,15 @@ tr:hover td{background:rgba(255,107,0,.04)}
 @media (max-width:1380px){.gauges.six{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .side,:root:not([data-theme="dark"]) .top{background:rgba(255,255,255,.75)}:root:not([data-theme="dark"]) input,:root:not([data-theme="dark"]) select,:root:not([data-theme="dark"]) textarea{background:#fff}:root:not([data-theme="dark"]) .modal .card{background:rgba(255,255,255,.96)}}
 @media (max-width:860px){.gauges.six{grid-template-columns:repeat(2,minmax(0,1fr))}.hero2 h1{font-size:36px}.gauges{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gauge .gv{font-size:22px}}
+
+/* alignment: labels of different length must not push inputs out of line */
+.fields>.fld,.grid>.fld,.row>.fld,.ubar-row>.fld,fieldset>.fields>.fld{justify-content:flex-end}
+.fld>span{line-height:1.3}
+.inrow input:only-child{border-radius:10px}
+.ro .v{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:2px;overflow-wrap:anywhere;min-width:0}
+.ro .v small{white-space:nowrap}
+.readouts .ro>.eyebrow{min-height:2.5em;display:flex;align-items:flex-end}
+.gauges .gauge .gl{min-height:0}
 </style>
 <div id="root"></div>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -885,7 +894,7 @@ PAGES.units=v=>{
 
 /* ---------- shared unit field helpers ---------- */
 const UF=store.get('ufields',{});
-function uField(id,label,dim,baseVal,sys,extra=''){const ok=isDim(dim);let u=sysUnit(dim,sys);if(ok&&UF[id]&&U[dim][UF[id]]!=null)u=UF[id];const val=ok?fromB(dim,u,baseVal):baseVal;return `<label class="fld"><span>${esc(label)}</span><div class="inrow"><input type="number" step="any" inputmode="decimal" id="${id}" data-dim="${dim}" value="${fmtIn(val)}" ${extra}>${unitSel(dim,u,`data-uf="${id}"`)}</div></label>`}
+function uField(id,label,dim,baseVal,sys,extra=''){const ok=isDim(dim);let u=sysUnit(dim,sys);if(ok&&UF[id]&&U[dim][UF[id]]!=null)u=UF[id];const val=ok?fromB(dim,u,baseVal):baseVal;return `<label class="fld"><span>${esc(label)}</span><div class="inrow"><input type="number" step="any" inputmode="decimal" id="${id}" data-dim="${dim}" value="${fmtIn(val)}" ${extra}>${dim==='–'?'':unitSel(dim,u,`data-uf="${id}"`)}</div></label>`}
 function readU(el,sys){const d=el.dataset.dim;const v=num(el.value);if(!isDim(d))return v;const sel=el.parentElement.querySelector('select[data-uf]');return toB(d,sel?sel.value:sysUnit(d,sys),v)}
 const tblSys=(page,base)=>Object.assign({base:base||S.sys},UF['tbl.'+page]||{});
 const tblUnits=(page,dims,sys,label='Table units')=>`<div class="row tu"><span class="eyebrow">${label}</span>${dims.map(d=>`<span class="tuw">${unitSel(d,sysUnit(d,sys),`data-tu="${page}"`)}</span>`).join('')}</div>`;
@@ -1356,7 +1365,7 @@ const fracN=s=>{const m=/^(?:(\d+)-)?(\d+)\/(\d+)$/.exec(s);if(m)return (m[1]?+m
 PAGES.flanges=v=>{
   let K=0.17,stressPct=50;const sys=S.sys;
   v.innerHTML=head('Flanges & BOP','API 6A flange bolting, ring gaskets and nut spanner sizes, with an estimated make-up torque. Check every value against the current API 6A edition and the equipment manufacturer before use.')+
-  `<div class="card"><div class="fields">${uField('fk','Nut factor K (lubricated ≈ 0.12–0.17)','–',K,sys)}${uField('fs','Target stud stress (% of 105 ksi B7 yield)','%',stressPct,sys)}<select id="fp" aria-label="Pressure rating" style="align-self:end"><option value="">All pressure ratings</option>${[2000,3000,5000,10000,15000].map(p=>`<option value="${p}">${fmt(p)} psi</option>`).join('')}</select></div></div>
+  `<div class="card"><div class="fields">${uField('fk','Nut factor K (lubricated ≈ 0.12–0.17)','–',K,sys)}${uField('fs','Target stud stress (% of 105 ksi B7 yield)','%',stressPct,sys)}<label class="fld"><span>Pressure rating</span><select id="fp"><option value="">All pressure ratings</option>${[2000,3000,5000,10000,15000].map(p=>`<option value="${p}">${fmt(p)} psi</option>`).join('')}</select></label></div></div>
   <div class="tbl"><table><thead><tr><th>Nominal size</th><th class="n">Working pressure</th><th>Type</th><th class="n">Studs</th><th>Stud Ø (in)</th><th>Ring gasket</th><th>Spanner A/F (in)</th><th class="n">Est. torque (${sysUnit('torque',sys)})</th></tr></thead><tbody id="fb"></tbody></table></div>
   <p class="muted" style="font-size:13px">Spanner size is the heavy-hex nut width across flats (1.5 × stud Ø + 1/8"). Torque estimate: T = K × F × d, with F = target stress × tensile stress area (8 UN threads for studs 1" and larger).</p>`;
   const draw=()=>{const pf=$('#fp').value;$('#fb').innerHTML=FL.filter(r=>!pf||r[1]==pf).map(([sz,wp,n,dia,ring,ty])=>{const d=fracN(dia);const tpi=d>=1?8:d>=0.875?9:10;const As=0.7854*Math.pow(d-0.9743/tpi,2);const F=105000*stressPct/100*As;const T=K*F*d/12;const af=1.5*d+0.125;return `<tr><td class="mono">${sz}"</td><td class="n">${fmt(wp)} psi</td><td>${ty}</td><td class="n">${n}</td><td class="mono">${dia}</td><td class="mono">${ring}</td><td class="mono">${frac(af)}</td><td class="n">${DN('torque',T,sys,0)}</td></tr>`}).join('')};
@@ -2394,7 +2403,7 @@ PAGES.geomech=v=>{
     $('#ge1').innerHTML=`<div class="readouts">${ro('Collapse EMW',DN('dens',E(pc),sys,2),sysUnit('dens',sys),'key')}${ro('Breakdown EMW',DN('dens',E(pb),sys,2),sysUnit('dens',sys),'key')}${ro('Pore pressure EMW',DN('dens',E(PP),sys,2),sysUnit('dens',sys))}${ro('Breakout width at planned MW',fmt(wbo,0),'°',wbo>90?'crit':wbo>60?'warn':'')}</div><p><span class="pill ${st[1]}">${st[0]}</span></p>
     <div class="card"><h3 style="margin-bottom:8px">Stress polygon at ${fmt(d.tvd,0)} ft</h3>${lineChart({series:[{name:'Limits',color:CSSV('--accent'),end:false,pts:[[shMin,shMin],[shMin,R*(shMin-PP)+PP],[SV,sHMax],[sHMax,sHMax],[shMin,shMin]]},{name:'σH = σh',color:CSSV('--muted'),dash:true,end:false,pts:[[shMin,shMin],[sHMax,sHMax]]},{name:'This well',color:ok?CSSV('--ok'):CSSV('--crit'),dots:true,end:false,width:0.001,pts:[[Sh,SH]]}],xLabel:'σh (psi)',yLabel:'σH (psi)',h:300,equal:true})}<p class="muted" style="font-size:13px">${ok?'The stress state is inside the frictional limits.':'The stress state is outside the frictional limits; check the input stresses.'}</p></div>`;
     const bhtp=d.isip+0.052*d.ffw*d.tvd,net=bhtp-d.clos;const n=Math.max(1,Math.round(d.stg)),padV=d.clean*d.pad/100,stV=(d.clean-padV)/n;const sch=[['Pad',padV,0],...Array.from({length:n},(_,i)=>[`Stage ${i+1}`,stV,d.ppa*(i+1)/n])];const tot=sch.reduce((a,s)=>a+s[1]*42*s[2],0);
-    $('#ge2').innerHTML=`<div class="readouts">${ro('Bottom-hole treating pressure',DN('pres',bhtp,sys,0),sysUnit('pres',sys))}${ro('Net pressure',DN('pres',net,sys,0),sysUnit('pres',sys),net<0?'warn':'')}${ro('Frac gradient',fmt(bhtp/d.tvd,3),'psi/ft')}${ro('Proppant',fmt(tot/1000,0),'klb','key')}</div><div class="tbl"><table><thead><tr><th>Stage</th><th class="n">Clean fluid (bbl)</th><th class="n">Concentration (ppa)</th><th class="n">Proppant (lb)</th></tr></thead><tbody>${sch.map(s=>`<tr><td>${s[0]}</td><td class="n">${fmt(s[1],0)}</td><td class="n">${fmt(s[2],1)}</td><td class="n">${fmt(s[1]*42*s[2],0)}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#ge2').innerHTML=`<div class="readouts">${ro('BH treating pressure',DN('pres',bhtp,sys,0),sysUnit('pres',sys))}${ro('Net pressure',DN('pres',net,sys,0),sysUnit('pres',sys),net<0?'warn':'')}${ro('Frac gradient',fmt(bhtp/d.tvd,3),'psi/ft')}${ro('Proppant',fmt(tot/1000,0),'klb','key')}</div><div class="tbl"><table><thead><tr><th>Stage</th><th class="n">Clean fluid (bbl)</th><th class="n">Concentration (ppa)</th><th class="n">Proppant (lb)</th></tr></thead><tbody>${sch.map(s=>`<tr><td>${s[0]}</td><td class="n">${fmt(s[1],0)}</td><td class="n">${fmt(s[2],1)}</td><td class="n">${fmt(s[1]*42*s[2],0)}</td></tr>`).join('')}</tbody></table></div>`;
     const lo=5*d.d50,hi=6*d.d50,mid=(lo+hi)/2;const best=MESH.reduce((a,m)=>Math.abs((m[1]+m[2])/2-mid)<Math.abs((a[1]+a[2])/2-mid)?m:a);
     $('#ge3').innerHTML=`<div class="readouts">${ro('Gravel median size',`${fmt(lo,4)}–${fmt(hi,4)}`,'in')}${ro('Nearest US mesh',best[0],'','key')}${ro('Screen slot (approx.)',fmt(best[1]*0.75,4),'in')}</div><p class="muted" style="font-size:13px">Saucier: gravel D50 of 5 to 6 times formation D50. Slot shown as about 75% of the smallest gravel grain.</p>`};
   bindForm(v,d,sys,key,calc);calc();redraw=calc;
