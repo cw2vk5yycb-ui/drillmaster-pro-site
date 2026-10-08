@@ -273,7 +273,8 @@ canvas.b3{width:100%;height:520px;display:block;touch-action:none;cursor:grab}
 .skel{background:linear-gradient(90deg,var(--panel2),var(--line),var(--panel2));background-size:200% 100%;animation:sk 1.2s linear infinite;border-radius:8px;height:120px}
 @keyframes sk{to{background-position:-200% 0}}
 
-@media (max-width:1100px){.split{grid-template-columns:minmax(0,1fr)}.hero{grid-template-columns:minmax(0,1fr)}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.split.tsplit{grid-template-columns:minmax(0,.8fr) minmax(0,1.5fr)}
+@media (max-width:1100px){.split{grid-template-columns:minmax(0,1fr)}.split.tsplit{grid-template-columns:minmax(0,1fr)}.hero{grid-template-columns:minmax(0,1fr)}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:860px){
   .app{grid-template-columns:minmax(0,1fr)}
   .side{position:fixed;left:0;top:0;bottom:0;width:284px;z-index:50;transform:translateX(-105%);transition:transform .22s ease;padding-top:calc(18px + env(safe-area-inset-top,0px))}
@@ -1563,16 +1564,20 @@ PAGES.trainer=v=>{
 
 /* ================= 9. Pipe tally ================= */
 PAGES.tally=v=>{
-  let d=store.get(wkey('tally'),null)||{bha:821,per:3,txt:[31.42,31.08,31.55,30.97,31.61,31.30,31.12,31.48,31.25,30.88,31.57,31.33,31.02,31.44,31.19,31.63,30.94,31.38,31.27,31.51,31.06,31.40,31.15,31.59].join('\n')};const sys=S.sys,key=wkey('tally'),LU=sysUnit('len',sys);
-  const parse=()=>d.txt.split(/[\s,;]+/).map(num).filter(x=>x>0);
-  v.innerHTML=head('Pipe tally','Paste or type joint lengths, one per line. The tally gives running string length and bit depth joint by joint. The example lengths are illustrative.',`<button class="btn pri" id="xExp">Export</button>`)+
-  `<div id="tys"></div><div class="split"><div class="card stack"><div class="fields">${uField('ty-bha','BHA length','len',d.bha,sys,'data-key="bha"')}${uField('ty-per','Joints per stand','–',d.per,sys,'data-key="per"')}</div><label class="fld"><span>Joint lengths (${LU}), one per line or comma separated</span><textarea id="tyT" style="min-height:300px;font-family:var(--f-mono)">${esc(d.txt)}</textarea></label></div>
-  <div class="tbl" style="max-height:620px;overflow-y:auto"><table><thead><tr><th class="n">Joint</th><th class="n">Stand</th><th class="n">Length (${LU})</th><th class="n">Pipe total</th><th class="n">Bit depth</th></tr></thead><tbody id="tyb"></tbody></table></div></div>`;
-  const calc=()=>{const j=parse();let c=0;const k=x=>fmt(x,2);const bha=fromB('len',LU,d.bha);
-    $('#tyb').innerHTML=j.map((L,i)=>{c+=L;const endStand=(i+1)%Math.max(1,Math.round(d.per))===0;return `<tr${endStand?' style="border-bottom:2px solid var(--line2)"':''}><td class="n">${i+1}</td><td class="n">${Math.floor(i/Math.max(1,Math.round(d.per)))+1}</td><td class="n">${k(L)}</td><td class="n">${k(c)}</td><td class="n">${k(c+bha)}</td></tr>`}).join('')||'<tr><td colspan="5" class="muted">Enter joint lengths to build the tally.</td></tr>';
-    $('#tys').innerHTML=`<div class="readouts">${ro('Joints',j.length,'')}${ro('Stands',fmt(j.length/Math.max(1,d.per),1),'')}${ro('Pipe length',k(c),LU)}${ro('Average joint',j.length?k(c/j.length):'—',LU)}${ro('String length with BHA',k(c+bha),LU,'key')}</div>`};
+  let d=store.get(wkey('tally'),null)||{bha:821,per:3,txt:[31.42,31.08,31.55,30.97,31.61,31.30,31.12,31.48,31.25,30.88,31.57,31.33,31.02,31.44,31.19,31.63,30.94,31.38,31.27,31.51,31.06,31.40,31.15,31.59].join('\n')};const sys=S.sys,key=wkey('tally');
+  if(!d.inU)d.inU=sysUnit('len',sys)==='m'&&!store.get(wkey('tally'),null)?'ft':sysUnit('len',sys);
+  const FT=x=>toB('len',d.inU,x),M=x=>fromB('len','m',x);/* joints -> ft (base), ft -> m */
+  const parse=()=>d.txt.split(/[\s,;]+/).map(num).filter(x=>x>0).map(FT);
+  const seg=`<div class="row" style="gap:8px;align-items:center;margin:2px 0 4px"><span class="eyebrow">Joint lengths entered in</span><div class="seg" id="tyU">${['ft','m'].map(u=>`<button type="button" class="btn${d.inU===u?' pri':''}" data-u="${u}">${u==='ft'?'Feet (ft)':'Metres (m)'}</button>`).join('')}</div></div>`;
+  v.innerHTML=head('Pipe tally','Paste or type joint lengths, one per line, in feet or metres. The tally shows every length, running total and bit depth in both feet and metres. The example lengths are illustrative.',`<button class="btn pri" id="xExp">Export</button>`)+
+  `<div id="tys"></div><div class="split tsplit"><div class="card stack">${seg}<div class="fields">${uField('ty-bha','BHA length','len',d.bha,sys,'data-key="bha"')}${uField('ty-per','Joints per stand','–',d.per,sys,'data-key="per"')}</div><label class="fld"><span id="tyL">Joint lengths (${d.inU}), one per line or comma separated</span><textarea id="tyT" style="min-height:300px;font-family:var(--f-mono)">${esc(d.txt)}</textarea></label></div>
+  <div class="tbl" style="max-height:620px;overflow:auto"><table><thead><tr><th class="n" rowspan="2">Joint</th><th class="n" rowspan="2">Stand</th><th class="n" colspan="2">Joint length</th><th class="n" colspan="2">Pipe total</th><th class="n" colspan="2">Bit depth</th></tr><tr><th class="n">ft</th><th class="n">m</th><th class="n">ft</th><th class="n">m</th><th class="n">ft</th><th class="n">m</th></tr></thead><tbody id="tyb"></tbody></table></div></div>`;
+  const calc=()=>{const j=parse();let c=0;const k=x=>fmt(x,2);const bha=d.bha;const per=Math.max(1,Math.round(d.per));
+    $('#tyb').innerHTML=j.map((L,i)=>{c+=L;const endStand=(i+1)%per===0;return `<tr${endStand?' style="border-bottom:2px solid var(--line2)"':''}><td class="n">${i+1}</td><td class="n">${Math.floor(i/per)+1}</td><td class="n">${k(L)}</td><td class="n muted">${k(M(L))}</td><td class="n">${k(c)}</td><td class="n muted">${k(M(c))}</td><td class="n">${k(c+bha)}</td><td class="n muted">${k(M(c+bha))}</td></tr>`}).join('')||'<tr><td colspan="8" class="muted">Enter joint lengths to build the tally.</td></tr>';
+        $('#tys').innerHTML=`<div class="readouts">${ro('Joints',j.length,'')}${ro('Stands',fmt(j.length/per,1),'')}${ro('Pipe length',k(c),' ft','',k(M(c))+' m')}${ro('Average joint',j.length?k(c/j.length):'—',' ft','',j.length?k(M(c/j.length))+' m':'')}${ro('String length with BHA',k(c+bha),' ft','key',k(M(c+bha))+' m')}</div>`};
   bindForm(v,d,sys,key,calc);const base=v.oninput;v.oninput=v.onchange=e=>{if(e.target.id==='tyT'){d.txt=e.target.value;store.set(key,d);calc();return}base(e)};
-  $('#xExp').onclick=()=>exportDialog({title:'Pipe tally',file:'Pipe_Tally',build:()=>{const j=parse();let c=0;const bha=fromB('len',LU,d.bha);return{title:'Pipe tally',file:'Pipe_Tally',meta:[['Unit',LU],['BHA length',fmt(bha,2)],['Joints',j.length],['Total string',fmt(j.reduce((a,b)=>a+b,0)+bha,2)]],tables:[{title:'Tally',head:['Joint','Stand','Length','Pipe total','Bit depth'],body:j.map((L,i)=>{c+=L;return[i+1,Math.floor(i/Math.max(1,Math.round(d.per)))+1,fmt(L,2),fmt(c,2),fmt(c+bha,2)]})}]}}});
+  $('#tyU').onclick=e=>{const b=e.target.closest('[data-u]');if(!b||b.dataset.u===d.inU)return;d.inU=b.dataset.u;store.set(key,d);$('#tyU').querySelectorAll('[data-u]').forEach(x=>x.classList.toggle('pri',x.dataset.u===d.inU));$('#tyL').textContent=`Joint lengths (${d.inU}), one per line or comma separated`;calc()};
+  $('#xExp').onclick=()=>exportDialog({title:'Pipe tally',file:'Pipe_Tally',build:()=>{const j=parse();let c=0;const bha=d.bha,per=Math.max(1,Math.round(d.per)),tot=j.reduce((a,b)=>a+b,0)+bha;return{title:'Pipe tally',file:'Pipe_Tally',meta:[['Lengths entered in',d.inU],['BHA length',`${fmt(bha,2)} ft / ${fmt(M(bha),2)} m`],['Joints',j.length],['Total string',`${fmt(tot,2)} ft / ${fmt(M(tot),2)} m`]],tables:[{title:'Tally',head:['Joint','Stand','Length ft','Length m','Pipe total ft','Pipe total m','Bit depth ft','Bit depth m'],body:j.map((L,i)=>{c+=L;return[i+1,Math.floor(i/per)+1,fmt(L,2),fmt(M(L),2),fmt(c,2),fmt(M(c),2),fmt(c+bha,2),fmt(M(c+bha),2)]})}]}}});
   calc();
 };
 
