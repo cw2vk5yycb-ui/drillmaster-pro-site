@@ -567,7 +567,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const clone=o=>JSON.parse(JSON.stringify(o));
 let lastSave=null;
 /* shared-data bookkeeping: which keys sync to the team store */
-const LOCAL_KEYS=/^(settings|funits|fglobal|ufields|theme2|trainbest|handcalc|rigeqc|tutorial|tubgd|tubgc|tubcc|tubfav|bopview|_st)$/;
+const LOCAL_KEYS=/^(settings|funits|fglobal|ufields|theme2|trainbest|handcalc|rigeqc|tutorial|tubgd|tubgc|tubcc|tubfav|bopview|_st|lock|audit|role|hooks|rules|rulefired|rulelog|ver\..*|dash|learn|trainmode|prevwell|caps|sumkind|.*\.training)$/;
 const isShared=k=>!LOCAL_KEYS.test(k);
 const SH={db:null,user:null,on:false,ro:false,uid:null,meta:{},timers:{},busy:{},again:{},names:{},pending:false,warned:false};
 let stamps={};try{stamps=JSON.parse(localStorage.getItem('dmp:_st')||'{}')||{}}catch(e){}
@@ -2587,8 +2587,526 @@ PAGES.custom=v=>{
   RM.forEach(r=>{const n=+r[0];if(st[n]){r[2]=st[n][0];r[3]=st[n][1]}else if(why[n]&&r[2]==='P'){r[3]=why[n]}});
   const h=RM.find(r=>r[0]==='114');if(h){h[2]='D'}
 })();
+/* ================= 12. Engineering additions ================= */
 
-shell();render();try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
+/* ---------- Well control simulator: Driller's method, first circulation, live choke ---------- */
+const WCDEF={tvd:10000,mw:10,sidpp:400,gain:20,ca:0.0459,cp:0.01776,po:0.1,spm:30,scr:600,shoe:5000,fmw:14.5};
+PAGES.wcsim=v=>{
+  const sys=S.sys,key=wkey('wcsim');let d=Object.assign({},WCDEF,store.get(key,{}));
+  const P=pr=>DN('pres',pr,sys,0)+' '+sysUnit('pres',sys);
+  v.innerHTML=head('Well control simulator','Circulate a gas kick out with the Driller’s method. You run the choke: hold drill pipe pressure on the initial circulating pressure (ICP) while the gas expands and comes up the annulus. Pressure changes at the choke reach the drill pipe gauge after a short delay, as on a real rig.',`<button class="btn" id="wsNew">Random scenario</button>`)+
+  `<details class="card"><summary style="cursor:pointer;font-weight:600">Well and kick data</summary><div class="fields" style="margin-top:12px">${flds('ws-',[['tvd','True vertical depth','len'],['mw','Mud weight','dens'],['sidpp','SIDPP','pres'],['gain','Pit gain (kick size)','vol'],['ca','Annular capacity','cap'],['cp','String capacity','cap'],['po','Pump output','stk'],['spm','Kill rate','spm'],['scr','Pressure at kill rate (SCR)','pres'],['shoe','Casing shoe TVD','len'],['fmw','Fracture EMW at shoe','dens']],d,sys)}</div></details>
+  <div class="gauges" id="wsG"></div>
+  <div class="card stack"><div class="row" style="justify-content:space-between"><div class="row"><button class="btn pri" id="wsRun">Start pumps</button><button class="btn" id="wsReset">Reset</button><span class="eyebrow">Speed</span><div class="seg" id="wsSp">${[1,4,10].map(x=>`<button type="button" data-sp="${x}" aria-pressed="${x===4}">${x}×</button>`).join('')}</div></div>
+  <div class="row"><span class="eyebrow">Choke</span>${[-50,-10,10,50].map(x=>`<button class="btn sm" data-ck="${x}">${x>0?'+':''}${x} psi</button>`).join('')}</div></div>
+  <div id="wsMsg"></div></div>
+  <div class="split"><div class="card"><h3 style="margin-bottom:8px">Pressures against strokes pumped</h3><div id="wsC"></div></div><div class="card stack"><h3>Well</h3><div id="wsW"></div><div id="wsR"></div></div></div>
+  <p class="muted" style="font-size:13px">Model: single gas bubble obeying Boyle’s law in a uniform annulus, gas gradient 0.1 psi/ft, annular friction neglected (SCR includes it), new influx while bottom-hole pressure is below formation pressure, losses when shoe pressure exceeds the fracture pressure. A training aid, not an engineering simulation.</p>`;
+  let st,timer=null,speed=4;
+  const g=()=>0.052*d.mw,Pf=()=>0.052*d.mw*d.tvd+d.sidpp,ICP=()=>d.scr+d.sidpp;
+  const solve=(s)=>{const G=g(),gg=0.1;const Dbot=d.tvd-(s.pump*d.po)/d.ca;let hb=0,top=0,Vb=0;
+    if(Dbot>0&&s.m>0){Vb=d.gain;for(let i=0;i<40;i++){hb=Vb/d.ca;top=Math.max(0,Dbot-hb);const Pb=s.pc+G*top+14.7;Vb=s.m/Pb}hb=Vb/d.ca;
+      if(Dbot-hb<=0){hb=Dbot;top=0;Vb=hb*d.ca;s.m=Math.min(s.m,(s.pc+14.7)*Vb)}top=Math.max(0,Dbot-hb)}
+    else{s.m=0}
+    const bhp=s.pc+G*(d.tvd-hb)+gg*hb;const ov=Math.max(0,Math.min(d.shoe,Dbot)-Math.min(d.shoe,top));const pshoe=s.pc+G*(d.shoe-ov)+gg*ov;
+    return{Dbot,hb,top,Vb,bhp,pshoe,pfrac:0.052*d.fmw*d.shoe}};
+  const reset=()=>{if(timer){clearInterval(timer);timer=null}const s={pump:0,pc:0,m:(Pf()+14.7)*d.gain,lost:0,inband:0,total:0,hist:[],bhpQ:[],done:false,running:false,ev:[]};
+    // shut-in casing pressure that balances the formation
+    let lo=0,hi=Pf();for(let i=0;i<60;i++){s.pc=(lo+hi)/2;const r=solve(s);if(r.bhp>Pf())hi=s.pc;else lo=s.pc}s.pc=Math.ceil(s.pc);s.sicp=s.pc;st=s;paint(true)};
+  const tick=()=>{const s=st;const dS=d.spm/60*0.25*speed;s.pump+=dS;const r=solve(s);const dt=dS/d.spm;const pf=Pf();
+    if(r.bhp<pf-1&&r.Dbot>0){s.m+=(pf+14.7)*0.005*(pf-r.bhp)*dt;if(!s.ev.includes('kick')){s.ev.push('kick');toast('Bottom-hole pressure below formation pressure: more influx')}}
+    if(r.pshoe>r.pfrac){s.lost+=0.02*(r.pshoe-r.pfrac)*dt;if(!s.ev.includes('loss')){s.ev.push('loss');toast('Shoe pressure above fracture pressure: losses')}}
+    s.total+=dS;if(r.bhp>=pf&&r.bhp<=pf+200)s.inband+=dS;
+    s.bhpQ.push(r.bhp);const lagTicks=Math.max(0,Math.round((d.tvd/1000)/(0.25*speed)));while(s.bhpQ.length>lagTicks+1)s.bhpQ.shift();
+    const end=(d.tvd*d.ca+d.tvd*d.cp)/d.po;if(s.pump>=end){s.done=true;stop()}paint()};
+  const stop=()=>{if(timer){clearInterval(timer);timer=null}st.running=false;const b=$('#wsRun');if(b)b.textContent=st.done?'Finished':'Resume pumps'};
+  const paint=(full)=>{const s=st,r=solve(s),pf=Pf();const bhpLag=s.bhpQ.length?s.bhpQ[0]:r.bhp;const dpp=s.pump>0?d.scr+bhpLag-0.052*d.mw*d.tvd:d.sidpp;
+    if(full||!$('#wsG [data-g]')){GCFG.wsdpp=['Drill pipe',0,Math.ceil(ICP()*1.6/100)*100,'psi',ICP()+150,ICP()+300,0];const maasp=r.pfrac-0.052*d.mw*d.shoe;GCFG.wspc=['Choke (casing)',0,Math.ceil(Math.max(s.sicp*2.5,maasp*1.4)/100)*100,'psi',maasp-100,maasp,0];GCFG.wspit=['Pit gain',0,Math.max(60,d.gain*4),'bbl',d.gain*2,d.gain*3,1];
+      $('#wsG').innerHTML=gauge('wsdpp',dpp)+gauge('wspc',s.pc)+gauge('wspit',r.Vb-s.lost);}
+    gaugeSet(v,'wsdpp',dpp);gaugeSet(v,'wspc',s.pc);gaugeSet(v,'wspit',r.Vb-s.lost);
+    if(s.pump>0&&(!s.hist.length||s.pump-s.hist[s.hist.length-1][0]>=4))s.hist.push([s.pump,dpp,s.pc,r.bhp-pf]);
+    const H=s.hist.length?s.hist:[[0,d.sidpp,s.pc,0]];$('#wsC').innerHTML=lineChart({series:[{name:'Drill pipe',color:CSSV('--accent'),pts:H.map(h=>[h[0],h[1]])},{name:'Choke',color:CSSV('--warn'),pts:H.map(h=>[h[0],h[2]])},{name:'Target ICP',color:CSSV('--ok'),dash:true,pts:[[0,ICP()],[Math.max(100,(d.tvd*(d.ca+d.cp))/d.po),ICP()]]}],xLabel:'Strokes',yLabel:'psi',h:240,ymin:0});
+    const W=120,Hh=260,y=x=>10+x/d.tvd*(Hh-20);
+    $('#wsW').innerHTML=`<svg viewBox="0 0 ${W+130} ${Hh}" width="100%" style="max-height:280px"><rect x="20" y="10" width="${W-40}" height="${Hh-20}" fill="var(--panel2)" stroke="var(--line2)"/><rect x="${W/2-8}" y="10" width="16" height="${Hh-20}" fill="var(--steel)" opacity=".35"/>
+      ${r.Dbot>0&&r.hb>0?`<rect x="21" y="${y(r.top)}" width="${W/2-29}" height="${Math.max(2,y(r.Dbot)-y(r.top))}" fill="var(--crit)" opacity=".75"/><rect x="${W/2+8}" y="${y(r.top)}" width="${W/2-29}" height="${Math.max(2,y(r.Dbot)-y(r.top))}" fill="var(--crit)" opacity=".75"/>`:''}
+      <line x1="10" x2="${W-10}" y1="${y(d.shoe)}" y2="${y(d.shoe)}" stroke="var(--warn)" stroke-dasharray="4 3"/><text x="${W}" y="${y(d.shoe)+4}" class="gt" style="font:11px var(--f-mono);fill:var(--muted)">Shoe</text>
+      <text x="${W}" y="${y(Math.max(r.top,0))+4}" style="font:11px var(--f-mono);fill:var(--crit)">${r.Dbot>0&&r.hb>0?'Gas top '+fmt(r.top,0):'Gas out'}</text><text x="${W}" y="${Hh-8}" style="font:11px var(--f-mono);fill:var(--muted)">TD ${fmt(d.tvd,0)}</text></svg>`;
+    const pct=s.total?s.inband/s.total*100:0;
+    $('#wsR').innerHTML=`<div class="readouts">${ro('Strokes',fmt(s.pump,0),'')}${ro('Target ICP',DN('pres',ICP(),sys,0),sysUnit('pres',sys),'key')}${ro('BHP − formation',DN('pres',r.bhp-pf,sys,0),sysUnit('pres',sys),r.bhp<pf?'crit':r.bhp>pf+200?'warn':'')}${ro('Shoe margin',DN('pres',r.pfrac-r.pshoe,sys,0),sysUnit('pres',sys),r.pshoe>r.pfrac?'crit':r.pfrac-r.pshoe<100?'warn':'')}${ro('Time in safe band',fmt(pct,0),'%',pct>=80?'key':pct<50?'crit':'warn')}</div>`;
+    const tip=s.done?`<div class="note ${pct>=80?'info':''}"><b>First circulation complete.</b> Gas is out. You kept bottom-hole pressure in the safe band (formation to +200 psi) for ${fmt(pct,0)}% of the strokes${s.ev.includes('kick')?', took a second influx':''}${s.ev.includes('loss')?', and broke down the shoe':''}. Shut in and check that SIDPP and SICP both read ${P(d.sidpp)}.</div>`
+      :s.pump===0?`<div class="note info">Shut in: SIDPP ${P(d.sidpp)}, SICP ${P(s.sicp)}. Start the pumps, then use the choke buttons (or ← → keys) to hold drill pipe pressure on ${P(ICP())}.</div>`
+      :Math.abs(dpp-ICP())>50?`<div class="note ${dpp<ICP()?'crit':''}">Drill pipe ${P(dpp)} is ${dpp<ICP()?'below':'above'} ICP: ${dpp<ICP()?'close':'open'} the choke a little. Remember the delay before the drill pipe gauge responds.</div>`:`<div class="note info">On target. Watch the casing pressure rise as the gas expands near surface; keep following drill pipe pressure, not casing pressure.</div>`;
+    $('#wsMsg').innerHTML=tip};
+  const run=()=>{if(st.done)return;if(timer){stop();return}st.running=true;$('#wsRun').textContent='Pause';timer=setInterval(tick,250)};
+  v.onclick=e=>{const c=e.target.closest('[data-ck]');if(c){st.pc=Math.max(0,st.pc+ +c.dataset.ck);paint();return}const sp=e.target.closest('[data-sp]');if(sp){speed=+sp.dataset.sp;$$('#wsSp button').forEach(b=>b.setAttribute('aria-pressed',b===sp))}};
+  const kh=e=>{if(route()!=='wcsim'||/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;if(e.key==='ArrowLeft'){st.pc=Math.max(0,st.pc-10);paint()}if(e.key==='ArrowRight'){st.pc+=10;paint()}};document.addEventListener('keydown',kh);
+  cleanup.push(()=>{if(timer)clearInterval(timer);document.removeEventListener('keydown',kh)});
+  bindForm(v,d,sys,key,reset);
+  $('#wsRun').onclick=run;$('#wsReset').onclick=reset;
+  $('#wsNew').onclick=()=>{const R=(a,b,s=1)=>Math.round((a+Math.random()*(b-a))/s)*s;d=Object.assign({},WCDEF,{tvd:R(6000,14000,100),mw:R(9,13,0.1),sidpp:R(150,800,10),gain:R(8,40),spm:R(25,40),scr:R(400,900,10)});d.shoe=Math.round(d.tvd*0.55/100)*100;d.fmw=+(d.mw+R(2.5,4.5,0.1)).toFixed(1);store.set(key,d);PAGES.wcsim(v)};
+  reset();
+};
+
+/* ---------- Casing triaxial, wear and drill-string vibration ---------- */
+const CTDEF={od:9.625,t:0.472,grade:'N-80',fa:250000,pi:3000,po:1500,df:1.25,wf:1,side:500,rpm:120,hrs:200,tjod:6.625,wear:0,len:10000,bl:90,bod:8,bid:2.8125,bw:147};
+const lens=(R,r,c)=>{if(c>=R+r)return 0;if(c<=Math.abs(R-r))return Math.PI*Math.min(R,r)**2;const a=R*R*Math.acos((c*c+R*R-r*r)/(2*c*R)),b=r*r*Math.acos((c*c+r*r-R*R)/(2*c*r));return a+b-0.5*Math.sqrt((-c+R+r)*(c+R-r)*(c-R+r)*(c+R+r))};
+const vme=(D,t,Y,F,pi,po)=>{const ro=D/2,ri=ro-t,As=Math.PI*(ro*ro-ri*ri);const sa=F/As,sr=-pi,sh=(pi*(ro*ro+ri*ri)-2*po*ro*ro)/(ro*ro-ri*ri);return Math.sqrt(0.5*((sa-sh)**2+(sh-sr)**2+(sr-sa)**2))};
+PAGES.triax=v=>{
+  const sys=S.sys,key=wkey('triax');let d=Object.assign({},CTDEF,store.get(key,{}));
+  v.innerHTML=head('Casing triaxial, wear and vibration','Von Mises (VME) triaxial check with the design ellipse, casing wear groove from the White and Dawson wear-factor method with derated burst and collapse, and critical rotary speeds for the drill string and BHA.',`<button class="btn pri" id="xExp">Export</button>`)+
+  `<div class="split"><div class="stack"><div class="card"><h3 style="margin-bottom:10px">Casing and loads</h3><div class="fields">${flds('ct-',[['od','Casing OD','dia'],['t','Wall thickness','dia']],d,sys)}<label class="fld"><span>Grade</span><select data-tkey="grade">${Object.keys(GRADES).map(g=>`<option${g===d.grade?' selected':''}>${g}</option>`).join('')}</select></label>${flds('ct-',[['fa','Axial load (+ tension)','force'],['pi','Internal pressure','pres'],['po','External pressure','pres'],['df','Triaxial design factor','–']],d,sys)}</div></div>
+  <div class="card"><h3 style="margin-bottom:10px">Casing wear</h3><div class="fields">${flds('cw-',[['wf','Wear factor (×10⁻¹⁰ /psi)','–'],['side','Side force','lbf/ft'],['rpm','Rotary speed','rpm'],['hrs','Rotating hours','hr'],['tjod','Tool joint OD','dia']],d,sys)}</div></div>
+  <div class="card"><h3 style="margin-bottom:10px">Vibration</h3><div class="fields">${flds('cv-',[['len','Drill string length','len'],['bl','BHA span between stabilisers','len'],['bod','Collar OD','dia'],['bid','Collar ID','dia'],['bw','Collar weight','wpl']],d,sys)}</div></div></div>
+  <div class="stack" id="ctR"></div></div>`;
+  const calc=()=>{const Y=GRADES[d.grade]*1000,D=d.od,t=d.t,rO=D/2,ri=rO-t;const s=vme(D,t,Y,d.fa,d.pi,d.po),sf=Y/s;
+    const lim=Y/d.df,As=Math.PI*(rO*rO-ri*ri),Fmax=lim*As;const env=(sign)=>{const pts=[];for(let i=-40;i<=40;i++){const F=Fmax*i/40;let lo=0,hi=Y*2;for(let k=0;k<50;k++){const m=(lo+hi)/2;const vv=sign>0?vme(D,t,Y,F,m,0):vme(D,t,Y,F,0,m);if(vv>lim)hi=m;else lo=m}pts.push([F/1000,sign*lo])}return pts};
+    const burstAPI=0.875*2*Y*t/D,colAPI=collapseAPI(D,t,GRADES[d.grade]).p;
+    // wear
+    const dist=Math.PI*d.tjod*d.rpm*60*d.hrs; const area=d.wf*1e-10*(d.side/12)*dist; // in²
+    const rtj=d.tjod/2;let lo=0,hi=t*0.99;const wArea=g=>Math.PI*rtj*rtj-lens(ri,rtj,ri-rtj+g);for(let k=0;k<60;k++){const m=(lo+hi)/2;if(wArea(m)>area)hi=m;else lo=m}const groove=lo,wpct=groove/t*100,tw=t-groove;
+    const burstW=0.875*2*Y*tw/D,colW=collapseAPI(D,tw,GRADES[d.grade]).p;
+    // vibration
+    const E=30e6,Gm=11.5e6,rho=0.2836,c=Math.sqrt(E*386.1/rho)/12,ct=Math.sqrt(Gm*386.1/rho)/12;const Lf=d.len;const ax=[1,2,3].map(n=>(2*n-1)*c/(4*Lf)*60),to=[1,2,3].map(n=>(2*n-1)*ct/(4*Lf)*60);
+    const I=Math.PI*(d.bod**4-d.bid**4)/64,mpl=d.bw/12/386.1,Li=d.bl*12;const lat=[1,2,3].map(n=>(n*n*Math.PI/(2*Li*Li))*Math.sqrt(E*I/mpl)*60);
+    const near=(arr,f=1)=>arr.some(x=>Math.abs(d.rpm*f-x)/x<0.1);
+    const tbl=(name,arr,note)=>`<tr><td>${name}</td>${arr.map(x=>`<td class="n">${fmt(x,0)}</td>`).join('')}<td class="muted">${note}</td></tr>`;
+    $('#ctR').innerHTML=`<div class="readouts">${ro('VME stress',fmt(s/1000,1),'ksi')}${ro('Triaxial safety factor',fmt(sf,2),'',sf<d.df?'crit':'key')}${ro('Wear groove',fmt(groove,3),'in',wpct>20?'warn':'')}${ro('Wall loss',fmt(wpct,1),'%',wpct>20?'warn':'')}</div>
+    ${card('Triaxial design ellipse',lineChart({series:[{name:'Burst limit',color:CSSV('--accent'),pts:env(1)},{name:'Collapse limit',color:CSSV('--warn'),pts:env(-1)},{name:'Load',color:CSSV('--crit'),width:0.001,dots:true,pts:[[d.fa/1000,d.pi-d.po]]}],xLabel:'Axial load (klbf)',yLabel:'Differential pressure, internal + (psi)',h:280})+`<p class="muted" style="font-size:13px">Envelope at yield ÷ design factor. Collapse below the ellipse can still govern through the API collapse modes, so check API collapse too: ${fmt(colAPI,0)} psi.</p>`)}
+    ${card('Wear derating',`<div class="tbl"><table><thead><tr><th></th><th class="n">New</th><th class="n">Worn</th><th class="n">Loss</th></tr></thead><tbody><tr><td>Wall (in)</td><td class="n">${fmt(t,3)}</td><td class="n">${fmt(tw,3)}</td><td class="n">${fmt(wpct,1)}%</td></tr><tr><td>Burst, API (psi)</td><td class="n">${fmt(burstAPI,0)}</td><td class="n">${fmt(burstW,0)}</td><td class="n">${fmt((1-burstW/burstAPI)*100,1)}%</td></tr><tr><td>Collapse, API (psi)</td><td class="n">${fmt(colAPI,0)}</td><td class="n">${fmt(colW,0)}</td><td class="n">${fmt((1-colW/colAPI)*100,1)}%</td></tr></tbody></table></div><p class="muted" style="font-size:13px">Wear volume = wear factor × side force × sliding distance (${fmt(dist/12/5280,0)} miles of tool-joint travel). Groove depth assumes a crescent cut by the tool joint. Typical wear factors: 1–5 ×10⁻¹⁰/psi with water mud, lower with oil-based mud and hardbanding.</p>`)}
+    ${card('Critical rotary speeds (rpm)',`<div class="tbl"><table><thead><tr><th>Mode</th><th class="n">1st</th><th class="n">2nd</th><th class="n">3rd</th><th>Note</th></tr></thead><tbody>${tbl('Axial (string)',ax.map(x=>x/3),'Roller-cone bit excites at 3× rpm')}${tbl('Torsional (string)',to,'Stick-slip tends to sit at the first mode')}${tbl('Lateral (BHA span)',lat,'Simply supported span, air weight')}</tbody></table></div>${near(ax.map(x=>x/3))||near(to)||near(lat)?`<div class="note crit">Planned ${fmt(d.rpm,0)} rpm is within 10% of a critical speed. Move the rotary speed.</div>`:`<div class="note info">Planned ${fmt(d.rpm,0)} rpm is clear of the first three critical speeds by more than 10%.</div>`}<p class="muted" style="font-size:13px">From first principles: wave speed √(E/ρ) and √(G/ρ) for steel, fixed–free string; lateral from Euler–Bernoulli beam theory. Treat as screening values; damping, mud and contact change the real numbers.</p>`)}`;
+    $('#xExp').onclick=()=>exportDialog({title:'Casing triaxial and wear',file:'Casing_Triaxial',build:()=>({title:'Casing triaxial and wear',file:'Casing_Triaxial',meta:[['Casing',`${d.od}" × ${d.t}" ${d.grade}`],['VME stress',fmt(s,0)+' psi'],['Triaxial SF',fmt(sf,2)],['Wear groove',fmt(groove,3)+' in ('+fmt(wpct,1)+'%)'],['Worn burst',fmt(burstW,0)+' psi'],['Worn collapse',fmt(colW,0)+' psi']],tables:[{title:'Critical speeds (rpm)',head:['Mode','1st','2nd','3rd'],body:[['Axial',...ax.map(x=>fmt(x/3,0))],['Torsional',...to.map(x=>fmt(x,0))],['Lateral',...lat.map(x=>fmt(x,0))]]}]})})};
+  bindForm(v,d,sys,key,calc);const base=v.onchange;v.onchange=e=>{if(e.target.dataset.tkey==='grade'){d.grade=e.target.value;store.set(key,d);calc();return}base(e)};calc();
+};
+
+/* ---------- MPD connection schedule and choke size ---------- */
+const MSDEF={tvd:12000,mw:11.2,ecd:12.0,afp:450,q:500,n:1.8,qmin:0,steps:6};
+PAGES.mpdsched=v=>{
+  const sys=S.sys,key=wkey('mpdsched');let d=Object.assign({},MSDEF,store.get(key,{}));
+  v.innerHTML=head('MPD connection schedule','Surface back-pressure (SBP) needed to hold a constant bottom-hole pressure while the pumps ramp down for a connection, with the equivalent choke size at each step.',`<a class="btn" href="#special">MPD, UBD and P&A</a><button class="btn pri" id="xExp">Export</button>`)+
+  `<div class="split"><div class="card"><div class="fields">${flds('ms-',[['tvd','TVD of control point','len'],['mw','Mud weight','dens'],['ecd','Target EMW at control point','dens'],['afp','Annular friction at full rate','pres'],['q','Drilling flow rate','flow'],['n','Friction exponent (≈1.8)','–'],['qmin','Flow kept through choke at zero pump (back-pressure pump)','flow'],['steps','Ramp steps','–']],d,sys)}</div></div><div class="stack" id="msR"></div></div>`;
+  const calc=()=>{const tgt=0.052*d.ecd*d.tvd,hyd=0.052*d.mw*d.tvd;const N=Math.max(2,Math.round(d.steps));const rows=[];
+    for(let i=0;i<=N;i++){const q=d.q*(1-i/N);const afp=d.afp*Math.pow(Math.max(q,0)/d.q,d.n);const sbp=tgt-hyd-afp;const qc=q+d.qmin;const A=sbp>0&&qc>0?Math.sqrt(d.mw*qc*qc/(12031*0.95*0.95*sbp)):NaN;const bean=Number.isFinite(A)?Math.sqrt(4*A/Math.PI)*64:NaN;rows.push([q,afp,sbp,qc,A,bean])}
+    const bad=rows.some(r=>r[2]<0),stuck=rows.some(r=>r[3]<=0&&r[2]>0);
+    $('#msR').innerHTML=`<div class="readouts">${ro('Target BHP',DN('pres',tgt,sys,0),sysUnit('pres',sys),'key')}${ro('Hydrostatic',DN('pres',hyd,sys,0),sysUnit('pres',sys))}${ro('SBP drilling',DN('pres',rows[0][2],sys,0),sysUnit('pres',sys))}${ro('SBP pumps off',DN('pres',rows[N][2],sys,0),sysUnit('pres',sys),'key')}</div>
+    ${bad?'<div class="note crit">The target is below hydrostatic plus friction at some rates: the well would be overbalanced even with the choke fully open. Lower the mud weight or raise the target.</div>':''}${stuck?'<div class="note">With no flow through the choke at zero pump rate the choke cannot hold pressure. Use a back-pressure pump or rig-pump diversion and enter that flow.</div>':''}
+    ${card('SBP against flow',lineChart({series:[{name:'SBP',color:CSSV('--accent'),pts:rows.map(r=>[r[0],r[2]])},{name:'Annular friction',color:CSSV('--warn'),pts:rows.map(r=>[r[0],r[1]])}],xLabel:'Pump rate (gpm)',yLabel:'psi',h:220,ymin:0}))}
+    <div class="tbl"><table><thead><tr><th class="n">Pump rate</th><th class="n">Annular friction</th><th class="n">SBP to hold</th><th class="n">Flow through choke</th><th class="n">Choke area (in²)</th><th class="n">Bean (64ths)</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="n">${DN('flow',r[0],sys,0)}</td><td class="n">${DN('pres',r[1],sys,0)}</td><td class="n">${DN('pres',r[2],sys,0)}</td><td class="n">${DN('flow',r[3],sys,0)}</td><td class="n">${Number.isFinite(r[4])?fmt(r[4],3):'—'}</td><td class="n">${Number.isFinite(r[5])?fmt(r[5],0):'—'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="muted" style="font-size:13px">Friction scales with (q/q₀)ⁿ. Choke size from the orifice equation ΔP = MW·q²/(12031·C²·A²) with C = 0.95. Real chokes are calibrated by the MPD contractor; use these as a starting schedule.</p>`;
+    $('#xExp').onclick=()=>exportDialog({title:'MPD connection schedule',file:'MPD_Schedule',build:()=>({title:'MPD connection schedule',file:'MPD_Schedule',meta:[['Target EMW',d.ecd+' ppg'],['TVD',d.tvd+' ft']],tables:[{title:'Schedule',head:['Pump gpm','AFP psi','SBP psi','Choke flow gpm','Area in²','Bean 64ths'],body:rows.map(r=>[fmt(r[0],0),fmt(r[1],0),fmt(r[2],0),fmt(r[3],0),fmt(r[4],3),fmt(r[5],0)])}]})})};
+  bindForm(v,d,sys,key,calc);calc();
+};
+
+/* ---------- Production logging and intelligent completions ---------- */
+const PLDEF={id:6.184,slope:0.07,thr:3,cvp:0.83,txt:'# depth (ft), spinner (rps) — shallow to deep\n9800, 7.6\n9850, 7.5\n9900, 5.2\n9950, 5.1\n10000, 2.3\n10050, 2.2\n10100, 0.1',zones:[{n:'Upper',pi:2.5,pr:3400,pos:10},{n:'Middle',pi:1.8,pr:3550,pos:6},{n:'Lower',pi:3.2,pr:3300,pos:3}],pt:2600,cvmax:12,sg:0.85};
+PAGES.plt=v=>{
+  const key=wkey('plt');let d=Object.assign({},PLDEF,store.get(key,{}));d.zones=d.zones||PLDEF.zones;
+  const draw=()=>{v.innerHTML=head('Production logging and smart completions','Turn spinner readings into a flow profile and zone contributions, and allocate rates between zones controlled by interval control valves (ICVs).',`<button class="btn pri" id="xExp">Export</button>`)+
+  `<div class="split"><div class="stack"><div class="card"><h3 style="margin-bottom:10px">Spinner survey</h3><div class="fields">${flds('pl-',[['id','Casing or tubing ID','dia'],['slope','Spinner slope (rps per ft/min)','–'],['thr','Threshold velocity (ft/min)','–'],['cvp','Velocity profile factor','–']],d,'oilfield')}</div><label class="fld" style="margin-top:12px"><span>Stations: depth, spinner rps</span><textarea id="plT" style="min-height:170px;font-family:var(--f-mono)">${esc(d.txt)}</textarea></label></div>
+  <div class="card"><h3 style="margin-bottom:10px">Interval control valves</h3><div class="fields">${flds('pz-',[['pt','Tubing pressure at zones (psi)','–'],['cvmax','ICV Cv fully open','–'],['sg','Fluid SG','–']],d,'oilfield')}</div>
+  <div class="tbl" style="margin-top:12px"><table><thead><tr><th>Zone</th><th class="n">PI (bbl/d/psi)</th><th class="n">Reservoir P (psi)</th><th class="n">ICV position 0–10</th></tr></thead><tbody>${d.zones.map((z,i)=>`<tr><td><input data-z="${i}" data-zf="n" value="${esc(z.n)}" style="width:110px"></td><td><input type="number" step="any" data-z="${i}" data-zf="pi" value="${z.pi}" style="width:90px"></td><td><input type="number" step="any" data-z="${i}" data-zf="pr" value="${z.pr}" style="width:100px"></td><td><input type="range" min="0" max="10" step="1" data-z="${i}" data-zf="pos" value="${z.pos}" style="width:130px;min-height:28px"> <b class="mono">${z.pos}</b></td></tr>`).join('')}</tbody></table></div></div></div><div class="stack" id="plR"></div></div>`;
+    bindForm(v,d,'oilfield',key,calc);const base=v.oninput;v.oninput=v.onchange=e=>{const t=e.target;if(t.id==='plT'){d.txt=t.value;store.set(key,d);calc();return}if(t.dataset.z!=null){const z=d.zones[+t.dataset.z];z[t.dataset.zf]=t.dataset.zf==='n'?t.value:num(t.value);store.set(key,d);if(t.type==='range')t.nextElementSibling.textContent=t.value;calc();return}base(e)};calc()};
+  const calc=()=>{const A=Math.PI/4*(d.id/12)**2;const st=rows(d.txt).filter(r=>r.length>=2&&r.every(Number.isFinite)).sort((a,b)=>a[0]-b[0]);
+    const q=st.map(([z,rps])=>{const va=rps>0?rps/d.slope+d.thr:0;return[z,va*d.cvp*A*256.47]});const top=q.length?q[0][1]:0;
+    const zones=[];for(let i=0;i<q.length-1;i++){const c=q[i][1]-q[i+1][1];if(Math.abs(c)>top*0.03)zones.push([q[i][0],q[i+1][0],c])}
+    const icv=d.zones.map(z=>{const cv=d.cvmax*Math.pow(z.pos/10,2);const dp=z.pr-d.pt;if(cv<=0)return{...z,q:0,dpv:0};const aa=d.sg*z.pi*Math.pow(1/(34.29*cv),2);let qq;if(dp<=0)qq=z.pi*dp;else qq=(-1+Math.sqrt(1+4*aa*z.pi*dp))/(2*aa);return{...z,q:qq,dpv:dp-qq/z.pi}});
+    const tot=icv.reduce((s,z)=>s+z.q,0);
+    $('#plR').innerHTML=`<div class="readouts">${ro('Surface rate (top station)',fmt(top,0),'bbl/d','key')}${ro('Producing zones',zones.filter(z=>z[2]>0).length,'')}${ro('ICV total rate',fmt(tot,0),'bbl/d','key')}</div>
+    ${card('Flow profile',lineChart({series:[{name:'Flow',color:CSSV('--accent'),pts:q.map(r=>[r[1],r[0]])}],xLabel:'Flow rate (bbl/d)',yLabel:'Depth (ft)',yInvert:true,h:260,xmin:0}))}
+    ${card('Zone contributions',`<div class="bars">${zones.map(z=>`<div class="bar"><span class="bl">${fmt(z[0],0)}–${fmt(z[1],0)} ft</span><span class="bt"><i style="width:${Math.max(2,Math.abs(z[2])/(top||1)*100)}%;background:${z[2]<0?'var(--crit)':'var(--accent)'}"></i></span><span class="bv mono">${fmt(z[2],0)} bbl/d · ${fmt(z[2]/(top||1)*100,0)}%</span></div>`).join('')||'<p class="muted">Enter at least two stations.</p>'}</div>${zones.some(z=>z[2]<0)?'<div class="note crit">Negative contribution: crossflow (thief zone) between these stations.</div>':''}`)}
+    ${card('ICV allocation',`<div class="bars">${icv.map(z=>`<div class="bar"><span class="bl">${esc(z.n)} · pos ${z.pos}</span><span class="bt"><i style="width:${Math.max(1,Math.abs(z.q)/(Math.max(...icv.map(x=>Math.abs(x.q)))||1)*100)}%;background:${z.q<0?'var(--crit)':'var(--accent)'}"></i></span><span class="bv mono">${fmt(z.q,0)} bbl/d</span></div>`).join('')}</div>${icv.some(z=>z.pr<d.pt)?'<div class="note">A zone below tubing pressure takes fluid instead of producing: close its valve to stop crossflow.</div>':''}<p class="muted" style="font-size:13px">Valve ΔP = SG·(q/(34.29·Cv))² with q in bbl/d; Cv rises with the square of the position. Spinner: v = rps/slope + threshold, mixture velocity × profile factor. Use calibrated tool data for real interpretation.</p>`)}`;
+    $('#xExp').onclick=()=>exportDialog({title:'Production log and ICVs',file:'PLT_ICV',build:()=>({title:'Production log and ICVs',file:'PLT_ICV',tables:[{title:'Flow profile',head:['Depth ft','Flow bbl/d'],body:q.map(r=>[r[0],fmt(r[1],0)])},{title:'ICV allocation',head:['Zone','Position','PI','Pr psi','Rate bbl/d'],body:icv.map(z=>[z.n,z.pos,z.pi,z.pr,fmt(z.q,0)])}]})})};
+  draw();
+};
+/* ================= 12b. Security, activity, versions, data sharing, automation ================= */
+function ask({title,msg='',input=null,ok='OK',cancel='Cancel',danger=false,alt=null}){return new Promise(res=>{const m=document.createElement('div');m.className='modal';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+  m.innerHTML=`<div class="card"><h2>${esc(title)}</h2>${msg?`<p class="muted">${esc(msg)}</p>`:''}${input?`<input id="askIn" type="${input==='pin'?'password':'text'}" ${input==='pin'?'inputmode="numeric"':''} autocomplete="off">`:''}<div class="row" style="justify-content:flex-end"><button class="btn ghost" data-a="c">${esc(cancel)}</button>${alt?`<button class="btn" data-a="alt">${esc(alt)}</button>`:''}<button class="btn ${danger?'danger':'pri'}" data-a="ok">${esc(ok)}</button></div></div>`;
+  document.body.appendChild(m);const inp=$('#askIn',m);(inp||$('[data-a="ok"]',m)).focus();const done=val=>{m.remove();res(val)};
+  m.addEventListener('click',e=>{if(e.target===m)return done(input?null:false);const a=e.target.closest('[data-a]')?.dataset.a;if(!a)return;done(a==='ok'?(input?inp.value:true):a==='alt'?'alt':(input?null:false))});if(inp)inp.onkeydown=e=>{if(e.key==='Enter')done(inp.value)}})}
+const B64={to:b=>{let s='';new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));return btoa(s)},from:s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
+const sha=async txt=>B64.to(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(txt)));
+const modTitle=k=>{const m=k.split('.')[0];return TITLES[m]||({certs:'Certificates',comp:'Competency',wells:'Wells',custom:'My formulas',hist:'Report history',ver:'Versions'})[m]||m};
+const wellOfKey=k=>{const p=k.split('.');const w=WELLS.find(x=>x.id===p[p.length-1]);return w?w.name:'All wells'};
+
+/* ---------- roles and activity log (wraps store.set) ---------- */
+const AUD={last:{}};
+const role=()=>store.get('role','admin');
+(()=>{const base=store.set.bind(store);store.set=(k,val)=>{
+  if(role()==='viewer'&&isShared(k)){if(!AUD.warn){AUD.warn=true;toast('Viewer role: changes are not saved on this device')}return}
+  base(k,val);if(!isShared(k)||/^(audit|ver\.)/.test(k))return;
+  const now=Date.now();const log=store.get('audit',[]);const who=S.uname||'This device';
+  if(AUD.last[k]&&now-AUD.last[k]<60000&&log.length&&log[0].k===k){log[0].t=now}else{log.unshift({t:now,k,who,w:S.well});if(log.length>500)log.length=500}
+  AUD.last[k]=now;base('audit',log);hookFire('save',k,val)}})();
+
+/* ---------- app lock (PIN and device biometrics) ---------- */
+const LOCK={idleT:null,shown:false};
+const lockCfg=()=>store.get('lock',null);
+function showLock(){const c=lockCfg();if(!c||LOCK.shown)return;LOCK.shown=true;const m=document.createElement('div');m.className='modal lockscr';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+  m.innerHTML=`<div class="card" style="width:min(360px,100%);align-items:center;text-align:center">${LOGO}<h2>DrillMaster Pro is locked</h2><p class="muted">Enter your PIN${c.bio?' or use fingerprint / face unlock':''}.</p>
+  <input id="lkPin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" style="text-align:center;font:600 22px var(--f-mono);letter-spacing:.3em" aria-label="PIN">
+  <div class="grid g3" style="width:100%">${[1,2,3,4,5,6,7,8,9,'⌫',0,'OK'].map(x=>`<button class="btn${x==='OK'?' pri':''}" data-k="${x}">${x}</button>`).join('')}</div>
+  ${c.bio?'<button class="btn" id="lkBio" style="width:100%">Use fingerprint or face</button>':''}<p class="err" id="lkErr" aria-live="polite"></p></div>`;
+  document.body.appendChild(m);const inp=$('#lkPin',m);inp.focus();
+  const tryPin=async()=>{if(await sha(c.salt+inp.value)===c.hash){m.remove();LOCK.shown=false;armIdle()}else{$('#lkErr',m).textContent='Wrong PIN';inp.value=''}};
+  m.addEventListener('click',e=>{const k=e.target.closest('[data-k]')?.dataset.k;if(k==null)return;if(k==='⌫')inp.value=inp.value.slice(0,-1);else if(k==='OK')tryPin();else inp.value+=k;inp.focus()});
+  inp.onkeydown=e=>{if(e.key==='Enter')tryPin()};
+  const bb=$('#lkBio',m);if(bb)bb.onclick=async()=>{try{await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:B64.from(c.bio)}],userVerification:'required',timeout:60000}});m.remove();LOCK.shown=false;armIdle()}catch(e){$('#lkErr',m).textContent='Biometric unlock was cancelled or is not available here. Use your PIN.'}};
+  if(c.bio)setTimeout(()=>bb&&bb.click(),300)}
+function armIdle(){clearTimeout(LOCK.idleT);const c=lockCfg();if(!c||!c.auto)return;LOCK.idleT=setTimeout(showLock,c.auto*60000)}
+['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(!LOCK.shown)armIdle()},{passive:true}));
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&lockCfg()&&lockCfg().onhide)showLock()});
+
+/* ---------- webhooks ---------- */
+const HK={t:{}};
+function hookFire(ev,k,val){const hs=store.get('hooks',[]).filter(h=>h.on&&h.ev.includes(ev));if(!hs.length)return;clearTimeout(HK.t[k]);HK.t[k]=setTimeout(()=>hs.forEach(h=>hookSend(h,{event:ev,module:k.split('.')[0],key:k,well:wellOfKey(k),at:new Date().toISOString(),by:S.uname||'',data:val})),4000)}
+async function hookSend(h,payload){let st;try{const r=await fetch(h.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});st=r.ok?'OK '+r.status:'HTTP '+r.status}catch(e){st='Blocked or offline'}
+  const all=store.get('hooks',[]);const x=all.find(y=>y.id===h.id);if(x){x.last=new Date().toLocaleString()+' · '+st;try{localStorage.setItem('dmp:hooks',JSON.stringify(all))}catch(e){}}return st}
+
+/* ---------- crypto backup ---------- */
+async function aesKey(pass,salt){const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:210000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+const allData=()=>Object.fromEntries(store.keys().map(k=>[k.slice(4),localStorage.getItem(k)]));
+const pickFile=accept=>new Promise(res=>{const i=document.createElement('input');i.type='file';i.accept=accept;i.onchange=()=>res(i.files[0]||null);i.click()});
+
+/* ---------- version snapshots ---------- */
+const wellKeys=id=>store.keys().map(k=>k.slice(4)).filter(k=>k.endsWith('.'+id)&&!k.startsWith('ver.'));
+function snapshot(id,note,auto){const keys=wellKeys(id);if(!keys.length)return false;const vers=store.get('ver.'+id,[]);const data={};keys.forEach(k=>data[k]=localStorage.getItem('dmp:'+k));
+  const sig=JSON.stringify(data).length+':'+keys.length;if(auto&&vers[0]&&vers[0].sig===sig)return false;vers.unshift({t:Date.now(),note:note||'',auto:!!auto,who:S.uname||'This device',sig,data});while(vers.length>15)vers.pop();try{localStorage.setItem('dmp:ver.'+id,JSON.stringify(vers))}catch(e){vers.pop();vers.pop();try{localStorage.setItem('dmp:ver.'+id,JSON.stringify(vers))}catch(e2){toast('Device storage is full: older versions removed')}}return true}
+setTimeout(()=>{try{const vers=store.get('ver.'+S.well,[]);if(!vers[0]||Date.now()-vers[0].t>864e5)snapshot(S.well,'Daily automatic version',true)}catch(e){}},4000);
+
+/* ---------- page: security and privacy ---------- */
+PAGES.security=v=>{
+  const draw=()=>{const c=lockCfg(),log=store.get('audit',[]),r=role();
+    v.innerHTML=head('Security and privacy','App lock with PIN and fingerprint or face unlock, a role for this device, an activity log, encrypted backups and erasing a well. Everything here runs on this device.')+
+    `<div class="grid g2"><div class="card stack"><h3>App lock</h3>${c?`<p><span class="pill ok">On</span> PIN set${c.bio?' · fingerprint / face unlock on':''}</p>`:'<p class="muted">Lock the app with a PIN so anyone picking up the phone or tablet cannot open your well data.</p>'}
+      <div class="fields"><label class="fld"><span>${c?'New PIN':'PIN (4–12 digits)'}</span><input id="pin1" type="password" inputmode="numeric" maxlength="12"></label><label class="fld"><span>Repeat PIN</span><input id="pin2" type="password" inputmode="numeric" maxlength="12"></label>
+      <label class="fld"><span>Lock after idle</span><select id="pinAuto">${[0,1,5,15,30].map(x=>`<option value="${x}"${(c?c.auto:5)==x?' selected':''}>${x?x+' min':'Never'}</option>`).join('')}</select></label></div>
+      <label class="chk"><input type="checkbox" id="pinHide"${c&&c.onhide?' checked':''}><span>Lock when the app goes to the background</span></label>
+      <div class="row"><button class="btn pri" id="pinSet">${c?'Change PIN':'Turn on app lock'}</button>${c?`<button class="btn" id="bioSet">${c.bio?'Remove fingerprint / face':'Add fingerprint / face unlock'}</button><button class="btn" id="lockNow">Lock now</button><button class="btn danger" id="pinOff">Turn off</button>`:''}</div>
+      <p class="muted" style="font-size:13px">The PIN is stored only as a salted SHA-256 hash. Fingerprint and face unlock use your device’s own sensor through WebAuthn; they need a browser that supports it, such as the installed app on Android or iPhone.</p></div>
+    <div class="card stack"><h3>Role on this device</h3><div class="seg" id="roleSeg">${[['admin','Admin'],['engineer','Engineer'],['viewer','Viewer']].map(([k,l])=>`<button type="button" data-role="${k}" aria-pressed="${r===k}">${l}</button>`).join('')}</div>
+      <p class="muted" style="font-size:14px">${r==='viewer'?'Viewer: you can read every module but nothing is saved, so a shared tablet cannot change well data.':r==='engineer'?'Engineer: create and edit data; Settings and Security changes need the PIN when app lock is on.':'Admin: full access, including Security and Settings.'}</p>
+      <label class="fld"><span>Your name for the activity log</span><input id="uname" value="${esc(S.uname||'')}" placeholder="e.g. R. Suthar, Night toolpusher"></label>
+      <p class="muted" style="font-size:13px">Roles here apply to this device. Company-wide sign-in, single sign-on and two-factor need an identity server.</p></div></div>
+    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Activity log</h3><div class="row"><button class="btn sm" id="audExp">Export</button><button class="btn sm ghost danger" id="audClr">Clear</button></div></div>
+      <div class="tbl" style="max-height:360px;overflow:auto"><table><thead><tr><th>When</th><th>Who</th><th>Module</th><th>Well</th></tr></thead><tbody>${log.slice(0,120).map(x=>`<tr><td class="mono">${new Date(x.t).toLocaleString()}</td><td>${esc(x.who)}</td><td>${esc(modTitle(x.k))}</td><td>${esc(wellOfKey(x.k))}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No changes recorded yet.</td></tr>'}</tbody></table></div></div>
+    <div class="grid g2"><div class="card stack"><h3>Encrypted backup</h3><p class="muted" style="font-size:14px">All wells, sheets and settings in one file, locked with AES-256 and your passphrase. Without the passphrase nobody can read it, including you, so keep it safe.</p>
+      <div class="fields"><label class="fld"><span>Passphrase</span><input id="bk1" type="password"></label><label class="fld"><span>Repeat (for backup)</span><input id="bk2" type="password"></label></div>
+      <div class="row"><button class="btn pri" id="bkSave">Save encrypted backup</button><button class="btn" id="bkLoad">Restore from backup</button></div></div>
+    <div class="card stack"><h3>Erase a well</h3><p class="muted" style="font-size:14px">Permanently removes ${esc(well().name)} and every sheet, report, version and record saved for it on this device${SH.on?' and in shared storage':''}. Export it first if you may need it.</p>
+      <label class="fld"><span>Type the well name to confirm</span><input id="erName" placeholder="${esc(well().name)}"></label><button class="btn danger" id="erGo">Erase this well</button></div></div>`;
+    const needPin=async()=>{const c=lockCfg();if(!c||role()==='admin')return true;const p=await ask({title:'Enter PIN',input:'pin'});return p!=null&&await sha(c.salt+p)===c.hash};
+    $('#pinSet').onclick=async()=>{const a=$('#pin1').value,b=$('#pin2').value;if(!/^\d{4,12}$/.test(a))return toast('Use 4 to 12 digits');if(a!==b)return toast('PINs do not match');const salt=B64.to(crypto.getRandomValues(new Uint8Array(16)));const old=lockCfg()||{};store.set('lock',{salt,hash:await sha(salt+a),auto:+$('#pinAuto').value,onhide:$('#pinHide').checked,bio:old.bio||null});armIdle();toast('App lock on');draw()};
+    $('#pinAuto').onchange=$('#pinHide').onchange=()=>{const c=lockCfg();if(c){c.auto=+$('#pinAuto').value;c.onhide=$('#pinHide').checked;store.set('lock',c);armIdle()}};
+    if($('#pinOff'))$('#pinOff').onclick=async()=>{const p=await ask({title:'Turn off app lock',msg:'Enter your PIN.',input:'pin',ok:'Turn off',danger:true});if(p==null)return;const c=lockCfg();if(await sha(c.salt+p)===c.hash){store.del('lock');toast('App lock off');draw()}else toast('Wrong PIN')};
+    if($('#lockNow'))$('#lockNow').onclick=showLock;
+    if($('#bioSet'))$('#bioSet').onclick=async()=>{const c=lockCfg();if(c.bio){c.bio=null;store.set('lock',c);draw();return}
+      if(!window.PublicKeyCredential)return toast('This browser does not support fingerprint or face unlock');
+      try{const cred=await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:'DrillMaster Pro'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:S.uname||'drillmaster',displayName:S.uname||'DrillMaster user'},pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},timeout:60000}});
+        c.bio=B64.to(cred.rawId);store.set('lock',c);toast('Fingerprint / face unlock added');draw()}catch(e){toast('Could not add biometric unlock here. Try the installed app or website.')}};
+    $('#roleSeg').onclick=async e=>{const b=e.target.closest('[data-role]');if(!b)return;if(!(await needPin()))return toast('Wrong PIN');store.set('role',b.dataset.role);draw()};
+    $('#uname').onchange=e=>{S.uname=e.target.value.trim();saveS()};
+    $('#audExp').onclick=()=>exportDialog({title:'Activity log',file:'Activity_Log',build:()=>({title:'Activity log',file:'Activity_Log',tables:[{title:'Changes',head:['When','Who','Module','Well'],body:store.get('audit',[]).map(x=>[new Date(x.t).toLocaleString(),x.who,modTitle(x.k),wellOfKey(x.k)])}]})});
+    $('#audClr').onclick=async()=>{if(!(await needPin()))return toast('Wrong PIN');if(await ask({title:'Clear the activity log?',msg:'This removes the change history on this device.',ok:'Clear',danger:true})){store.del('audit');draw()}};
+    $('#bkSave').onclick=async()=>{const a=$('#bk1').value;if(a.length<8)return toast('Use a passphrase of at least 8 characters');if(a!==$('#bk2').value)return toast('Passphrases do not match');
+      const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));const k=await aesKey(a,salt);const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,new TextEncoder().encode(JSON.stringify(allData())));
+      await saveFile('DrillMaster_Backup_'+today()+'.dmpx',JSON.stringify({app:'DrillMaster Pro',v:1,enc:'AES-256-GCM/PBKDF2-SHA256-210000',salt:B64.to(salt),iv:B64.to(iv),data:B64.to(ct)}))};
+    $('#bkLoad').onclick=async()=>{const f=await pickFile('.dmpx,application/json');if(!f)return;const pass=$('#bk1').value||await ask({title:'Backup passphrase',input:'pin'});if(!pass)return;
+      try{const j=JSON.parse(await f.text());const k=await aesKey(pass,B64.from(j.salt));const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:B64.from(j.iv)},k,B64.from(j.data));const data=JSON.parse(new TextDecoder().decode(pt));
+        if(!(await ask({title:'Restore this backup?',msg:`${Object.keys(data).length} items. Current data with the same names is replaced.`,ok:'Restore'})))return;Object.entries(data).forEach(([k2,val])=>{try{localStorage.setItem('dmp:'+k2,val)}catch(e){}});toast('Backup restored. Reloading…');setTimeout(()=>location.reload(),900)}catch(e){toast('Wrong passphrase or damaged file')}};
+    $('#erGo').onclick=async()=>{const w=well();if($('#erName').value.trim()!==w.name)return toast('Type the exact well name to confirm');if(!(await needPin()))return toast('Wrong PIN');
+      wellKeys(w.id).forEach(k=>store.del(k));store.del('ver.'+w.id);WELLS=WELLS.filter(x=>x.id!==w.id);if(!WELLS.length)WELLS=[{id:'w'+Date.now(),name:'New well',rig:'',field:'',stage:'Planning',spud:today(),events:[]}];store.set('wells',WELLS);S.well=WELLS[0].id;saveS();fillWellSel();toast(w.name+' erased');render()};
+  };draw();
+};
+
+/* ---------- page: version history ---------- */
+PAGES.versions=v=>{
+  const draw=()=>{const vers=store.get('ver.'+S.well,[]);const cur={};wellKeys(S.well).forEach(k=>cur[k]=localStorage.getItem('dmp:'+k));
+    v.innerHTML=head('Version history',`Saved versions of everything recorded for ${esc(well().name)}: sheets, schematics, surveys, reports and tasks. A version is saved automatically once a day; save one yourself before a big change. Up to 15 are kept on this device.`,`<button class="btn pri" id="vSave">Save version now</button>`)+
+    `<label class="fld" style="max-width:520px"><span>Note for the next version</span><input id="vNote" placeholder="e.g. Before revising kill sheet for 12-1/4 in section"></label>
+    <div class="tbl"><table><thead><tr><th>Saved</th><th>By</th><th>Note</th><th class="n">Modules</th><th>Changed since</th><th></th></tr></thead><tbody>${vers.map((x,i)=>{const ch=Object.keys({...x.data,...cur}).filter(k=>x.data[k]!==cur[k]);return `<tr><td class="mono">${new Date(x.t).toLocaleString()}</td><td>${esc(x.who||'')}</td><td>${esc(x.note||'')}${x.auto?' <span class="pill info">auto</span>':''}</td><td class="n">${Object.keys(x.data).length}</td><td>${ch.length?ch.map(k=>esc(modTitle(k))).join(', '):'<span class="muted">No changes</span>'}</td><td><div class="row" style="flex-wrap:nowrap"><button class="btn sm" data-rs="${i}">Restore</button><button class="btn sm ghost danger" data-vd="${i}" aria-label="Delete version">✕</button></div></td></tr>`}).join('')||'<tr><td colspan="6" class="muted">No versions yet. Save one now.</td></tr>'}</tbody></table></div>
+    <p class="muted" style="font-size:13px">Restoring first saves the current state as a version, so you can always undo a restore. Kill sheet, trip sheet, DDR and BOP test records also keep their own signed history inside each module.</p>`;
+    $('#vSave').onclick=()=>{toast(snapshot(S.well,$('#vNote').value.trim(),false)?'Version saved':'Nothing saved for this well yet');draw()};
+    v.onclick=async e=>{const r=e.target.closest('[data-rs]'),dl=e.target.closest('[data-vd]');const vers2=store.get('ver.'+S.well,[]);
+      if(r){const x=vers2[+r.dataset.rs];if(!(await ask({title:'Restore this version?',msg:well().name+' · '+new Date(x.t).toLocaleString()+'. The current state is saved as a version first.',ok:'Restore'})))return;snapshot(S.well,'Before restoring '+new Date(x.t).toLocaleString(),false);wellKeys(S.well).forEach(k=>{if(!(k in x.data))store.del(k)});Object.entries(x.data).forEach(([k,val])=>store.set(k,JSON.parse(val)));toast('Version restored');draw()}
+      if(dl){vers2.splice(+dl.dataset.vd,1);try{localStorage.setItem('dmp:ver.'+S.well,JSON.stringify(vers2))}catch(e2){}draw()}}};draw();
+};
+
+/* ---------- page: share, export and integrations ---------- */
+PAGES.datahub=v=>{
+  const draw=()=>{const hooks=store.get('hooks',[]);
+    v.innerHTML=head('Share, export and integrations','Send a whole well to another phone or laptop as one file, export everything for a data platform, and post changes to your own systems with webhooks.')+
+    `<div class="grid g2"><div class="card stack"><h3>Share a well device to device</h3><p class="muted" style="font-size:14px">Packs ${esc(well().name)} and all its sheets into one .dmpwell file. Send it by WhatsApp, Bluetooth, Nearby Share, AirDrop, email or USB; no internet or server is needed. On the other device open this page and import it.</p>
+      <div class="row"><button class="btn pri" id="wfShare">Share this well</button><button class="btn" id="wfImp">Import a well file</button></div></div>
+    <div class="card stack"><h3>Export everything</h3><p class="muted" style="font-size:14px">Full JSON of every well and module, or newline-delimited JSON (one record per module and well) ready for a data lake such as Azure Data Lake, AWS S3 or BigQuery.</p>
+      <div class="row"><button class="btn" id="exJson">Full JSON</button><button class="btn" id="exNd">NDJSON for data lake</button></div></div></div>
+    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Webhooks</h3><button class="btn sm" id="hkAdd">Add webhook</button></div>
+      <p class="muted" style="font-size:14px">When a module is saved, the app POSTs a JSON message to each address below (about 4 seconds after the last change): event, module, well, time, user and the saved data. Point it at Power Automate, Zapier, Make, Teams or your own server.</p>
+      <div class="tbl"><table><thead><tr><th>Address (https)</th><th>Send on save</th><th>Last result</th><th></th></tr></thead><tbody>${hooks.map((h,i)=>`<tr><td><input data-h="${i}" data-hf="url" value="${esc(h.url)}" style="width:340px" placeholder="https://…"></td><td><input type="checkbox" data-h="${i}" data-hf="on"${h.on?' checked':''} style="width:22px;min-height:22px"></td><td class="muted">${esc(h.last||'—')}</td><td><div class="row" style="flex-wrap:nowrap"><button class="btn sm" data-ht="${i}">Send test</button><button class="btn sm ghost danger" data-hd="${i}" aria-label="Delete webhook">✕</button></div></td></tr>`).join('')||'<tr><td colspan="4" class="muted">No webhooks yet.</td></tr>'}</tbody></table></div>
+      <p class="muted" style="font-size:13px">Webhooks work on the hosted website and installed app. Inside the Claude preview, outgoing requests are blocked by the page’s security settings.</p></div>`;
+    $('#wfShare').onclick=async()=>{const w=well();const data={};wellKeys(w.id).forEach(k=>data[k.slice(0,-(w.id.length+1))]=JSON.parse(localStorage.getItem('dmp:'+k)));const txt=JSON.stringify({app:'DrillMaster Pro',type:'well',v:1,at:new Date().toISOString(),by:S.uname||'',well:w,data});const name=w.name.replace(/[^\w\-]+/g,'_')+'_'+today()+'.dmpwell';
+      try{const f=new File([txt],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:w.name});return}}catch(e){if(e&&e.name==='AbortError')return}await saveFile(name,txt)};
+    $('#wfImp').onclick=async()=>{const f=await pickFile('.dmpwell,application/json');if(!f)return;try{const j=JSON.parse(await f.text());if(j.type!=='well')throw 0;let w=Object.assign({},j.well);const ex=WELLS.find(x=>x.id===w.id);
+      if(ex){const a=await ask({title:ex.name+' is already on this device',msg:'Replace it with the file, or import the file as a separate copy?',ok:'Replace',alt:'Import as copy'});if(a===false)return;if(a==='alt'){w.id='w'+Date.now();w.name+=' (copy)'}else snapshot(ex.id,'Before importing well file',false)}
+      WELLS=WELLS.filter(x=>x.id!==w.id).concat([w]);store.set('wells',WELLS);Object.entries(j.data).forEach(([m,val])=>store.set(m+'.'+w.id,val));S.well=w.id;saveS();fillWellSel();toast('Imported '+w.name);render()}catch(e){toast('Not a DrillMaster well file')}};
+    $('#exJson').onclick=()=>saveFile('DrillMaster_All_'+today()+'.json',JSON.stringify({app:'DrillMaster Pro',at:new Date().toISOString(),wells:WELLS,data:Object.fromEntries(Object.entries(allData()).map(([k,val])=>{try{return[k,JSON.parse(val)]}catch(e){return[k,val]}}))},null,1));
+    $('#exNd').onclick=()=>{const lines=Object.entries(allData()).filter(([k])=>!/^(settings|lock|audit|ver\.|_st|theme2)/.test(k)).map(([k,val])=>{const p=k.split('.');const w=WELLS.find(x=>x.id===p[p.length-1]);let data;try{data=JSON.parse(val)}catch(e){data=val}return JSON.stringify({module:p[0],title:modTitle(k),well_id:w?w.id:null,well:w?w.name:null,exported_at:new Date().toISOString(),data})});saveFile('DrillMaster_'+today()+'.ndjson',lines.join('\n'))};
+    $('#hkAdd').onclick=()=>{const h=store.get('hooks',[]);h.push({id:'h'+Date.now(),url:'',on:true,ev:['save']});store.set('hooks',h);draw()};
+    v.onchange=e=>{const t=e.target;if(t.dataset.h==null)return;const h=store.get('hooks',[]);const x=h[+t.dataset.h];if(t.dataset.hf==='on')x.on=t.checked;else x.url=t.value.trim();store.set('hooks',h)};
+    v.onclick=async e=>{const tb=e.target.closest('[data-ht]'),db=e.target.closest('[data-hd]');const h=store.get('hooks',[]);
+      if(tb){const x=h[+tb.dataset.ht];if(!/^https:\/\//.test(x.url))return toast('Enter an https:// address');tb.textContent='Sending…';const st=await hookSend(x,{event:'test',well:well().name,at:new Date().toISOString(),by:S.uname||'',message:'Test from DrillMaster Pro'});toast('Webhook: '+st);draw()}
+      if(db){h.splice(+db.dataset.hd,1);store.set('hooks',h);draw()}}};draw();
+};
+
+/* ---------- automation rules and reminders ---------- */
+const RTYPES={pit:['Live pit volume changes by more than','bbl in 10 min'],maint:['Maintenance service due within','hours'],cert:['Certificate expires within','days'],task:['Task is overdue for this well',''],time:['Every day at','(HH:MM)']};
+function ruleCheck(){const rules=store.get('rules',[]);if(!rules.length)return;const fired=store.get('rulefired',{}),dkey=today();let changed=false;
+  const fire=(r,id,msg)=>{const k=r.id+'|'+id+'|'+(r.type==='pit'?Math.floor(Date.now()/6e5):dkey);if(fired[k])return;fired[k]=1;changed=true;
+    if(r.act==='notify'&&'Notification' in window&&Notification.permission==='granted'){try{new Notification('DrillMaster Pro',{body:msg,tag:k,icon:'icon-192.png'})}catch(e){toast(msg)}}else toast(msg);
+    if(r.act==='task'){const kk=wkey('tasks');const t=store.get(kk,[]);t.push({t:msg,who:'',due:today(),pri:'High',st:'Open'});store.set(kk,t)}
+    const lg=store.get('rulelog',[]);lg.unshift({t:Date.now(),msg});lg.length=Math.min(lg.length,60);store.set('rulelog',lg)};
+  rules.filter(r=>r.on).forEach(r=>{try{
+    if(r.type==='pit'&&LIVE.pts.length>11){const a=LIVE.pts[LIVE.pts.length-1].pit,b=LIVE.pts[LIVE.pts.length-11].pit;if(Math.abs(a-b)>r.val)fire(r,'pit',`Pit volume changed ${fmt(a-b,1)} bbl in 10 min (demo feed)`)}
+    if(r.type==='maint')store.get('maint',[]).forEach(m=>{const due=m.last+m.int-m.hrs;if(due<=r.val)fire(r,m.n,`${m.n}: service ${due<0?'overdue by '+fmt(-due,0):'due in '+fmt(due,0)} hr`)});
+    if(r.type==='cert'){const lim=new Date(Date.now()+r.val*864e5).toISOString().slice(0,10);store.get('certs',[]).forEach(c=>{if(c.exp&&c.exp<=lim)fire(r,c.p+c.cert,`${c.p}: ${c.cert} ${c.exp<today()?'expired':'expires'} ${c.exp}`)})}
+    if(r.type==='task')store.get(wkey('tasks'),[]).forEach(t=>{if(t.st!=='Done'&&t.due&&t.due<today())fire(r,t.t,`Overdue task: ${t.t}${t.who?' ('+t.who+')':''}`)});
+    if(r.type==='time'){const now=new Date().toTimeString().slice(0,5);if(r.at&&now>=r.at)fire(r,'time',r.text||'Reminder')}
+  }catch(e){}});if(changed)store.set('rulefired',Object.fromEntries(Object.entries(fired).slice(-300)))}
+setInterval(ruleCheck,30000);setTimeout(ruleCheck,5000);
+PAGES.automate=v=>{
+  const draw=()=>{const rules=store.get('rules',null)||[{id:'r1',type:'maint',val:24,act:'toast',on:true},{id:'r2',type:'task',val:0,act:'toast',on:true},{id:'r3',type:'time',at:'06:00',text:'Morning report: update the DDR and kill sheet SCRs',act:'notify',on:false}];if(!store.get('rules',null))store.set('rules',rules);const lg=store.get('rulelog',[]);
+    const perm='Notification' in window?Notification.permission:'unsupported';
+    v.innerHTML=head('Automation and reminders','Rules that watch your data and alert you: service due, overdue tasks, expiring certificates, pit volume changes and daily reminders. An alert can show on screen, send a phone notification or add a task.',`<button class="btn" id="ruAdd">Add rule</button>`)+
+    `${perm==='granted'?'':`<div class="note info row" style="justify-content:space-between"><span>${perm==='unsupported'?'This browser cannot show notifications; alerts appear on screen instead.':'Allow notifications so alerts reach you while you use other apps.'}</span>${perm==='default'?'<button class="btn sm pri" id="ruPerm">Allow notifications</button>':''}</div>`}
+    <div class="tbl"><table><thead><tr><th>On</th><th>When</th><th>Value</th><th>Then</th><th></th></tr></thead><tbody>${rules.map((r,i)=>`<tr><td><input type="checkbox" data-r="${i}" data-rf="on"${r.on?' checked':''} style="width:22px;min-height:22px"></td><td><select data-r="${i}" data-rf="type" style="width:300px">${Object.entries(RTYPES).map(([k,x])=>`<option value="${k}"${k===r.type?' selected':''}>${x[0]}</option>`).join('')}</select></td>
+      <td>${r.type==='time'?`<div class="row" style="flex-wrap:nowrap"><input type="time" data-r="${i}" data-rf="at" value="${esc(r.at||'06:00')}" style="width:120px"><input data-r="${i}" data-rf="text" value="${esc(r.text||'')}" placeholder="Reminder text" style="width:240px"></div>`:r.type==='task'?'<span class="muted">—</span>':`<div class="row" style="flex-wrap:nowrap"><input type="number" step="any" data-r="${i}" data-rf="val" value="${r.val}" style="width:90px"><span class="muted">${RTYPES[r.type][1]}</span></div>`}</td>
+      <td><select data-r="${i}" data-rf="act" style="width:170px">${[['toast','Show on screen'],['notify','Phone notification'],['task','Add a task']].map(([k,l])=>`<option value="${k}"${k===r.act?' selected':''}>${l}</option>`).join('')}</select></td><td><button class="btn sm ghost danger" data-rd="${i}" aria-label="Delete rule">✕</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="card stack"><h3>Recent alerts</h3>${lg.length?`<div class="tl">${lg.slice(0,20).map(x=>`<div><span class="pill info">${new Date(x.t).toLocaleString()}</span><span>${esc(x.msg)}</span></div>`).join('')}</div>`:'<p class="muted">No alerts yet. Rules are checked every 30 seconds.</p>'}</div>
+    <p class="muted" style="font-size:13px">Rules run while the app is open or installed and running. Alerts when the phone is off or the app is closed need a push server.</p>`;
+    if($('#ruPerm'))$('#ruPerm').onclick=async()=>{try{await Notification.requestPermission()}catch(e){}draw()};
+    $('#ruAdd').onclick=()=>{const r=store.get('rules',[]);r.push({id:'r'+Date.now(),type:'task',val:0,act:'toast',on:true});store.set('rules',r);draw()};
+    v.onchange=e=>{const t=e.target;if(t.dataset.r==null)return;const r=store.get('rules',[]);const x=r[+t.dataset.r];const f=t.dataset.rf;x[f]=f==='on'?t.checked:f==='val'?num(t.value):t.value;if(f==='type'){x.val={pit:5,maint:24,cert:30}[x.type]??x.val}store.set('rules',r);if(f==='type')draw()};
+    v.onclick=e=>{const b=e.target.closest('[data-rd]');if(b){const r=store.get('rules',[]);r.splice(+b.dataset.rd,1);store.set('rules',r);draw()}}};draw();
+};
+/* ================= 13. Field capture, custom home, lessons, training mode, report writer, emissions ================= */
+
+/* ---------- media store (IndexedDB, this device) ---------- */
+const MDB={db:null};
+const mdb=()=>MDB.db?Promise.resolve(MDB.db):new Promise((res,rej)=>{try{const r=indexedDB.open('dmp-media',1);r.onupgradeneeded=()=>r.result.createObjectStore('items',{keyPath:'id'});r.onsuccess=()=>{MDB.db=r.result;res(MDB.db)};r.onerror=()=>rej(r.error)}catch(e){rej(e)}});
+const mput=async it=>{const db=await mdb();return new Promise((res,rej)=>{const t=db.transaction('items','readwrite');t.objectStore('items').put(it);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})};
+const mdel=async id=>{const db=await mdb();return new Promise(res=>{const t=db.transaction('items','readwrite');t.objectStore('items').delete(id);t.oncomplete=()=>res()})};
+const mall=async()=>{const db=await mdb();return new Promise(res=>{const r=db.transaction('items').objectStore('items').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([])})};
+const getPos=()=>new Promise(res=>{if(!navigator.geolocation)return res(null);navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy}),()=>res(null),{enableHighAccuracy:true,timeout:12000,maximumAge:60000})});
+const hav=(a,b)=>{const R=6371e3,r=x=>x*Math.PI/180;const dl=r(b.lat-a.lat),dn=r(b.lon-a.lon);const h=Math.sin(dl/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dn/2)**2;const dist=2*R*Math.asin(Math.sqrt(h));const y=Math.sin(dn)*Math.cos(r(b.lat)),x=Math.cos(r(a.lat))*Math.sin(r(b.lat))-Math.sin(r(a.lat))*Math.cos(r(b.lat))*Math.cos(dn);return{dist,brg:(Math.atan2(y,x)*180/Math.PI+360)%360}};
+const CI={photo:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/>',voice:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',qr:'<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/>',gps:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'};
+const cico=k=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CI[k]}</svg>`;
+const ll=p=>p?`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`:'';
+const fileToImg=f=>new Promise((res,rej)=>{const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=u});
+
+/* photo editor: pen, text, reference measurement */
+function photoEditor(img,item,onSave){const m=document.createElement('div');m.className='modal';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+  const sc=Math.min(1,1600/Math.max(img.width,img.height));const W=Math.round(img.width*sc),H=Math.round(img.height*sc);
+  m.innerHTML=`<div class="card" style="width:min(980px,100%);max-height:94vh;overflow:auto"><div class="row" style="justify-content:space-between"><h2>Mark up photo</h2><div class="seg" id="peTool">${[['pen','Draw'],['text','Text'],['ref','Set scale'],['meas','Measure']].map(([k,l],i)=>`<button type="button" data-t="${k}" aria-pressed="${i===0}">${l}</button>`).join('')}</div></div>
+  <p class="muted" id="peHelp" style="font-size:13px">Draw with your finger or mouse.</p><canvas id="peC" width="${W}" height="${H}" style="width:100%;height:auto;border-radius:10px;touch-action:none;background:#000"></canvas>
+  <label class="fld"><span>Note</span><input id="peNote" value="${esc(item.note||'')}" placeholder="What does this photo show?"></label>
+  <div class="row" style="justify-content:space-between"><button class="btn" id="peUndo">Undo</button><div class="row"><button class="btn ghost" id="peX">Cancel</button><button class="btn pri" id="peOk">Save photo</button></div></div></div>`;
+  document.body.appendChild(m);const c=$('#peC',m),x=c.getContext('2d');const ops=item.ops?JSON.parse(JSON.stringify(item.ops)):[];let tool='pen',cur=null,refPts=[],scale=item.scale||null,measPts=[];
+  const help={pen:'Draw with your finger or mouse.',text:'Tap where the label should go.',ref:'Tap both ends of something of known size (e.g. a 5 in pipe body), then enter its length.',meas:scale?'Tap two points to measure between them.':'Set the scale first.'};
+  const paint=()=>{x.drawImage(img,0,0,W,H);const lw=Math.max(3,W/300);ops.forEach(o=>{x.strokeStyle=o.col||'#ff6b00';x.fillStyle=o.col||'#ff6b00';x.lineWidth=lw;x.lineCap=x.lineJoin='round';
+    if(o.k==='pen'){x.beginPath();o.p.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.stroke()}
+    if(o.k==='text'){x.font=`700 ${Math.max(18,W/40)}px Inter,Arial`;x.lineWidth=lw*1.6;x.strokeStyle='#000';x.strokeText(o.s,o.p[0],o.p[1]);x.fillText(o.s,o.p[0],o.p[1])}
+    if(o.k==='line'){x.beginPath();x.moveTo(o.a[0],o.a[1]);x.lineTo(o.b[0],o.b[1]);x.stroke();[o.a,o.b].forEach(p=>{x.beginPath();x.arc(p[0],p[1],lw*1.6,0,7);x.fill()});x.font=`700 ${Math.max(16,W/45)}px Inter,Arial`;const mx=o.k2==='ref'?(o.a[0]+o.b[0])/2:o.b[0]+lw*3,my=o.k2==='ref'?(o.a[1]+o.b[1])/2-lw*3:o.b[1]+lw*6;x.lineWidth=lw*1.5;x.strokeStyle='#000';x.strokeText(o.s,mx,my);x.fillText(o.s,mx,my)}});
+    [...refPts,...measPts].forEach(p=>{x.fillStyle='#ffd23f';x.beginPath();x.arc(p[0],p[1],lw*2,0,7);x.fill()})};
+  const pt=e=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+  c.onpointerdown=async e=>{const p=pt(e);if(tool==='pen'){cur={k:'pen',p:[p]};ops.push(cur);c.setPointerCapture(e.pointerId)}
+    else if(tool==='text'){const s=await ask({title:'Label text',input:'text'});if(s){ops.push({k:'text',s,p});paint()}}
+    else if(tool==='ref'){refPts.push(p);paint();if(refPts.length===2){const L2=await ask({title:'Known length (inches)',msg:'Length between the two points you tapped.',input:'text'});const n=num(L2);if(n>0){const d=Math.hypot(refPts[1][0]-refPts[0][0],refPts[1][1]-refPts[0][1]);scale=n/d;ops.push({k:'line',k2:'ref',a:refPts[0],b:refPts[1],s:'ref '+fmt(n,2)+' in',col:'#ffd23f'});help.meas='Tap two points to measure between them.';toast('Scale set. Now use Measure.')}refPts=[];paint()}}
+    else if(tool==='meas'){if(!scale)return toast('Set the scale first');measPts.push(p);paint();if(measPts.length===2){const d=Math.hypot(measPts[1][0]-measPts[0][0],measPts[1][1]-measPts[0][1])*scale;ops.push({k:'line',a:measPts[0],b:measPts[1],s:fmt(d,2)+' in ('+fmt(d*25.4,0)+' mm)'});measPts=[];paint()}}};
+  c.onpointermove=e=>{if(cur){cur.p.push(pt(e));paint()}};c.onpointerup=()=>{cur=null};
+  $('#peTool',m).onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;tool=b.dataset.t;refPts=[];measPts=[];$$('#peTool button',m).forEach(y=>y.setAttribute('aria-pressed',y===b));$('#peHelp',m).textContent=help[tool];paint()};
+  $('#peUndo',m).onclick=()=>{ops.pop();paint()};$('#peX',m).onclick=()=>m.remove();
+  $('#peOk',m).onclick=()=>{paint();const out=c.toDataURL('image/jpeg',0.72);const th=document.createElement('canvas');const ts=240/Math.max(W,H);th.width=Math.round(W*ts);th.height=Math.round(H*ts);th.getContext('2d').drawImage(c,0,0,th.width,th.height);m.remove();onSave({img:out,thumb:th.toDataURL('image/jpeg',0.7),ops,scale,note:$('#peNote',m).value})};
+  paint()}
+
+/* video viewer with time-stamped notes */
+function videoViewer(it,onSave){const m=document.createElement('div');m.className='modal';const url=URL.createObjectURL(it.blob);const marks=(it.marks||[]).slice();
+  m.innerHTML=`<div class="card" style="width:min(820px,100%);max-height:94vh;overflow:auto"><h2>${esc(it.note||'Video')}</h2><video id="vvV" src="${url}" controls playsinline style="width:100%;border-radius:10px;background:#000;max-height:60vh"></video>
+  <div class="row"><input id="vvN" placeholder="Note at the current time, e.g. leak at flange bolt 3" style="flex:1"><button class="btn" id="vvAdd">Add note here</button></div><div class="tl" id="vvL"></div><div class="row" style="justify-content:flex-end"><button class="btn ghost" id="vvX">Close</button><button class="btn pri" id="vvOk">Save notes</button></div></div>`;
+  document.body.appendChild(m);const V=$('#vvV',m);const list=()=>{marks.sort((a,b)=>a.t-b.t);$('#vvL',m).innerHTML=marks.map((k,i)=>`<div><button class="pill info" data-seek="${k.t}" style="border:0;cursor:pointer">${new Date(k.t*1000).toISOString().slice(14,19)}</button><span>${esc(k.x)} <button class="btn sm ghost danger" data-md="${i}" aria-label="Delete note">✕</button></span></div>`).join('')||'<p class="muted">Pause the video and add notes at the moments that matter.</p>'};list();
+  m.onclick=e=>{const s=e.target.closest('[data-seek]');if(s){V.currentTime=+s.dataset.seek;V.play()}const d=e.target.closest('[data-md]');if(d){marks.splice(+d.dataset.md,1);list()}};
+  $('#vvAdd',m).onclick=()=>{const x=$('#vvN',m).value.trim();if(!x)return;marks.push({t:V.currentTime,x});$('#vvN',m).value='';list()};
+  const close=()=>{URL.revokeObjectURL(url);m.remove()};$('#vvX',m).onclick=close;$('#vvOk',m).onclick=()=>{onSave(marks);close()}}
+
+/* QR scanner */
+async function qrScan(){if(!('BarcodeDetector' in window)){toast('This browser cannot scan codes. Use Chrome on Android, or your phone camera app.');return null}
+  const det=new BarcodeDetector({formats:['qr_code','code_128','code_39','ean_13','data_matrix']});let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}catch(e){toast('Camera not available or permission denied');return null}
+  return new Promise(res=>{const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card" style="width:min(520px,100%)"><h2>Scan a QR label</h2><video id="qsV" playsinline muted style="width:100%;border-radius:12px;background:#000"></video><p class="muted">Point the camera at the code.</p><button class="btn ghost" id="qsX">Cancel</button></div>`;document.body.appendChild(m);
+    const V=$('#qsV',m);V.srcObject=stream;V.play();let alive=true;const stop=val=>{alive=false;stream.getTracks().forEach(t=>t.stop());m.remove();res(val)};$('#qsX',m).onclick=()=>stop(null);
+    const loop=async()=>{if(!alive)return;try{const c=await det.detect(V);if(c.length)return stop(c[0].rawValue)}catch(e){}setTimeout(loop,250)};V.onloadeddata=loop})}
+
+/* ---------- page: field capture ---------- */
+PAGES.capture=v=>{
+  let items=[],filter='all';const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const load=async()=>{try{items=(await mall()).filter(i=>i.well===S.well).sort((a,b)=>b.t-a.t)}catch(e){items=null}draw()};
+  const draw=()=>{const w=well();
+    v.innerHTML=head('Field capture',`Photos with mark-up and measurement, video with time-stamped notes, voice notes, QR scanning and GPS, saved with ${esc(w.name)} on this device.`)+
+    `<div class="grid tiles">${[['photo','Take photo','Mark up and measure'],['video','Record video','Add notes at moments'],['voice','Voice note','Speak, it types for you'],['qr','Scan QR label','Find inventory items'],['gps','Well location','Save GPS for this well']].map(([k,t,s])=>`<button class="card tile" data-cap="${k}" style="text-align:left;cursor:pointer;color:var(--fg);font:inherit"><span class="tlink"><span class="tic">${cico(k)}</span><span class="tx"><b>${t}</b><span>${s}</span></span></span></button>`).join('')}</div>
+    <input type="file" id="capPh" accept="image/*" capture="environment" hidden><input type="file" id="capVi" accept="video/*" capture="environment" hidden>
+    ${w.lat!=null?`<div class="card stack"><h3>Location</h3><dl class="kv"><dt>${esc(w.name)}</dt><dd>${ll(w)} ±${fmt(w.acc||0,0)} m</dd>${WELLS.filter(o=>o.id!==w.id&&o.lat!=null).map(o=>{const h=hav(w,o);return `<dt>To ${esc(o.name)}</dt><dd>${fmt(h.dist/1000,2)} km · bearing ${fmt(h.brg,0)}°</dd>`}).join('')}</dl><div class="row"><a class="btn sm" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${w.lat},${w.lon}">Open in maps</a></div></div>`:''}
+    <div class="row" style="justify-content:space-between"><div class="chips" id="capF">${[['all','All'],['photo','Photos'],['video','Videos'],['note','Notes']].map(([k,l])=>`<button class="chip" data-f="${k}" aria-pressed="${k===filter}">${l}</button>`).join('')}</div><span class="muted" style="font-size:13px">${items?items.length+' items':''}</span></div>
+    ${items===null?'<div class="note">Device storage for photos is not available in this browser view. Open the website or installed app.</div>':`<div class="lastracks">${items.filter(i=>filter==='all'||i.type===filter).map(i=>`<div class="card stack" data-it="${i.id}">${i.type==='photo'?`<img src="${i.thumb||i.img}" alt="" style="width:100%;border-radius:8px;cursor:pointer" data-open="${i.id}">`:i.type==='video'?`<button class="btn" data-open="${i.id}" style="height:120px">▶ Play video${i.marks&&i.marks.length?' · '+i.marks.length+' notes':''}</button>`:''}<div><b style="font-size:14px">${esc(i.note||(i.type==='note'?'Note':'Untitled'))}</b>${i.text?`<p style="font-size:14px;margin-top:4px;white-space:pre-wrap">${esc(i.text)}</p>`:''}<p class="muted" style="font-size:12px;margin-top:4px">${new Date(i.t).toLocaleString()}${i.pos?' · '+ll(i.pos):''}</p></div><div class="row"><button class="btn sm" data-open="${i.id}">${i.type==='note'?'Edit':'Open'}</button>${i.img?`<button class="btn sm" data-dl="${i.id}">Save</button>`:''}<button class="btn sm ghost danger" data-del="${i.id}" aria-label="Delete">✕</button></div></div>`).join('')||'<p class="muted">Nothing captured for this well yet.</p>'}</div>`}
+    <p class="muted" style="font-size:13px">Saved only on this device (photos and video are too large for shared storage). Use “Save” to keep a copy or attach it to a report. Measurements use a reference of known size in the same photo and plane, so they are estimates.</p>`};
+  const newId=()=>'m'+Date.now()+Math.floor(Math.random()*1000);
+  v.onclick=async e=>{const c=e.target.closest('[data-cap]');const f=e.target.closest('[data-f]');const o=e.target.closest('[data-open]'),dl=e.target.closest('[data-dl]'),dd=e.target.closest('[data-del]');
+    if(f){filter=f.dataset.f;draw();return}
+    if(c){const k=c.dataset.cap;
+      if(k==='photo')$('#capPh').click();if(k==='video')$('#capVi').click();
+      if(k==='qr'){const code=await qrScan();if(code==null)return;const id=String(code).split('|')[0].trim();const inv=store.get('inv',[]).find(x=>x.id===id);
+        if(inv){await ask({title:inv.id+' · '+inv.n,msg:`${inv.cat||''} · ${inv.loc||'no location'} · certificate ${inv.cert||'—'}${inv.cert&&inv.cert<today()?' (EXPIRED)':''}`,ok:'Close',cancel:'Open inventory'})||(location.hash='#inventory')}else{await mput({id:newId(),well:S.well,type:'note',t:Date.now(),note:'Scanned code',text:String(code)});toast('Code saved as a note');load()}}
+      if(k==='gps'){toast('Getting location…');const p=await getPos();if(!p)return toast('Location not available or permission denied');const w=well();Object.assign(w,{lat:p.lat,lon:p.lon,acc:p.acc});store.set('wells',WELLS);toast('Location saved for '+w.name);draw()}
+      if(k==='voice'){const it={id:newId(),well:S.well,type:'note',t:Date.now(),note:'Voice note',text:''};noteEditor(it,true)}
+      return}
+    if(o){const it=items.find(x=>x.id===o.dataset.open);if(!it)return;if(it.type==='photo'){const im=new Image();im.onload=()=>photoEditor(im,{...it,ops:[]},async r=>{Object.assign(it,{img:r.img,thumb:r.thumb,note:r.note});await mput(it);load()});im.src=it.img}
+      if(it.type==='video')videoViewer(it,async marks=>{it.marks=marks;await mput(it);load()});if(it.type==='note')noteEditor(it,false)}
+    if(dl){const it=items.find(x=>x.id===dl.dataset.dl);const b=await (await fetch(it.img)).blob();saveFile((it.note||'photo').replace(/[^\w\-]+/g,'_').slice(0,40)+'_'+new Date(it.t).toISOString().slice(0,10)+'.jpg',b)}
+    if(dd){if(await ask({title:'Delete this item?',ok:'Delete',danger:true})){await mdel(dd.dataset.del);load()}}};
+  v.onchange=async e=>{const t=e.target;if(t.id==='capPh'&&t.files[0]){const im=await fileToImg(t.files[0]);const pos=await getPos();photoEditor(im,{},async r=>{await mput({id:newId(),well:S.well,type:'photo',t:Date.now(),pos,img:r.img,thumb:r.thumb,note:r.note});toast('Photo saved');load()});t.value=''}
+    if(t.id==='capVi'&&t.files[0]){const f=t.files[0];if(f.size>200e6)return toast('Video is larger than 200 MB; trim it first');const pos=await getPos();const note=await ask({title:'Video title',input:'text',ok:'Save'});await mput({id:newId(),well:S.well,type:'video',t:Date.now(),pos,blob:f,note:note||'Video',marks:[]});toast('Video saved');t.value='';load()}};
+  const noteEditor=(it,autoListen)=>{const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card" style="width:min(560px,100%)"><h2>Voice note</h2><input id="neT" value="${esc(it.note||'')}" placeholder="Title"><textarea id="neX" style="min-height:180px">${esc(it.text||'')}</textarea>
+    <div class="row" style="justify-content:space-between"><button class="btn" id="neMic">${SR?'🎤 Start dictation':'Dictation not supported here'}</button><div class="row"><button class="btn ghost" id="neCa">Cancel</button><button class="btn pri" id="neOk">Save</button></div></div><p class="muted" id="neS" style="font-size:13px">${SR?'Speak naturally; say “full stop” or “new line”. Works best in Chrome on Android.':'Type the note instead.'}</p></div>`;document.body.appendChild(m);
+    let rec=null;const X=$('#neX',m);const stop=()=>{if(rec){rec.onend=null;try{rec.stop()}catch(e){}rec=null;$('#neMic',m).textContent='🎤 Start dictation'}};
+    const start=()=>{if(!SR)return;rec=new SR();rec.lang=S.lang==='hi'?'hi-IN':'en-GB';rec.continuous=true;rec.interimResults=false;rec.onresult=ev=>{for(let i=ev.resultIndex;i<ev.results.length;i++)if(ev.results[i].isFinal){let s=ev.results[i][0].transcript.replace(/\bfull stop\b/gi,'.').replace(/\bnew line\b/gi,'\n');X.value+=(X.value&&!/\s$/.test(X.value)?' ':'')+s.trim()}};rec.onerror=ev=>{$('#neS',m).textContent='Dictation stopped: '+(ev.error==='not-allowed'?'microphone permission denied':ev.error)};rec.onend=()=>{if(rec)try{rec.start()}catch(e){}};try{rec.start();$('#neMic',m).textContent='■ Stop dictation'}catch(e){}};
+    $('#neMic',m).onclick=()=>rec?stop():start();$('#neCa',m).onclick=()=>{stop();m.remove()};$('#neOk',m).onclick=async()=>{stop();it.note=$('#neT',m).value||'Voice note';it.text=X.value;if(!it.pos)it.pos=await getPos();await mput(it);m.remove();load()};if(autoListen)start()};
+  draw();load();
+};
+
+/* ---------- custom home dashboard ---------- */
+const DASHDEF={sec:['snapshot','attention','tasks','pinned','recent','modules'],gauges:['rop','spp','hook','tq','mw','pit']};
+const SECN={snapshot:'Rig snapshot gauges',attention:'Needs attention',tasks:'Open tasks',pinned:'Pinned modules',recent:'Recent',modules:'All modules'};
+(()=>{const orig=PAGES.home;PAGES.home=v=>{orig(v);const cfg=Object.assign({},DASHDEF,store.get('dash',{}));
+  const secs=[...v.querySelectorAll(':scope>section')];const hero=secs.shift();const byKey={};
+  secs.forEach(s=>{const h=s.querySelector('h2');const t=h?h.textContent:'';const k=s.querySelector('#hG')?'snapshot':/^Pinned/.test(t)?'pinned':/^Recent/.test(t)?'recent':'modules';(byKey[k]=byKey[k]||[]).push(s)});
+  // needs attention + tasks
+  const tasks=store.get(wkey('tasks'),[]).filter(t=>t.st!=='Done').sort((a,b)=>(a.due||'').localeCompare(b.due||''));
+  const att=[];store.get('maint',[]).forEach(m=>{const due=m.last+m.int-m.hrs;if(due<m.int*0.1)att.push([due<0?'crit':'warn',`${m.n}: service ${due<0?'overdue '+fmt(-due,0):'due in '+fmt(due,0)} hr`,'#maint'])});
+  const lim=new Date(Date.now()+60*864e5).toISOString().slice(0,10);store.get('certs',[]).forEach(c=>{if(c.exp&&c.exp<=lim)att.push([c.exp<today()?'crit':'warn',`${c.p}: ${c.cert} ${c.exp<today()?'expired':'expires'} ${c.exp}`,'#training'])});
+  store.get('inv',[]).forEach(i=>{if(i.cert&&i.cert<today())att.push(['crit',`${i.id} ${i.n}: certificate expired`,'#inventory'])});
+  const mk=(k,html)=>{const s=document.createElement('section');s.className='stack';s.innerHTML=html;byKey[k]=[s]};
+  mk('attention',`<div class="shead">${gico('Operations',18)}<h2>Needs attention</h2><span class="muted">${att.length}</span></div>${att.length?`<div class="tl">${att.slice(0,8).map(a=>`<div><span class="pill ${a[0]}">${a[0]==='crit'?'Now':'Soon'}</span><a href="${a[2]}" style="color:var(--fg)">${esc(a[1])}</a></div>`).join('')}</div>`:'<p class="muted">Nothing overdue: maintenance, certificates and inventory are in date.</p>'}`);
+  mk('tasks',`<div class="row" style="justify-content:space-between"><div class="shead">${gico('Operations',18)}<h2>Open tasks</h2><span class="muted">${tasks.length}</span></div><a class="btn sm" href="#tasks">All tasks</a></div>${tasks.length?`<div class="tl">${tasks.slice(0,6).map(t=>`<div><span class="pill ${t.due&&t.due<today()?'crit':t.pri==='High'?'warn':'info'}">${esc(t.due||'—')}</span><span>${esc(t.t)}${t.who?` <span class="muted">· ${esc(t.who)}</span>`:''}</span></div>`).join('')}</div>`:'<p class="muted">No open tasks for this well.</p>'}`);
+  // gauges subset
+  if(byKey.snapshot){const g=byKey.snapshot[0].querySelector('#hG');g.innerHTML=cfg.gauges.map(k=>gauge(k,LIVE.pts[LIVE.pts.length-1][k])).join('');g.className='gauges'+(cfg.gauges.length===6?' six':'')}
+  const order=cfg.sec.filter(k=>byKey[k]);const foot=[...v.children].filter(x=>x.tagName!=='SECTION');
+  v.innerHTML='';v.appendChild(hero);order.forEach(k=>byKey[k].forEach(s=>v.appendChild(s)));foot.forEach(x=>v.appendChild(x));
+  const btn=document.createElement('button');btn.className='btn sm';btn.textContent='Customise home';btn.style.alignSelf='flex-start';btn.onclick=dashEdit;hero.querySelector('.h2l').appendChild(btn);
+  $('[data-hs]',v).onclick=()=>openPalette();
+  const gi=setInterval(()=>{const q=LIVE.pts[LIVE.pts.length-1];cfg.gauges.forEach(k=>gaugeSet(v,k,q[k]))},1500);cleanup.push(()=>clearInterval(gi));
+}})();
+function dashEdit(){const cfg=Object.assign({},DASHDEF,store.get('dash',{}));let sec=cfg.sec.slice();Object.keys(SECN).forEach(k=>{if(!sec.includes(k)&&!cfg.off)sec.push(k)});const on=new Set(cfg.sec);const gs=new Set(cfg.gauges);
+  const m=document.createElement('div');m.className='modal';const draw=()=>{m.innerHTML=`<div class="card" style="width:min(520px,100%);max-height:90vh;overflow:auto"><h2>Customise home</h2><p class="muted">Choose sections and their order, and which gauges show in the rig snapshot.</p>
+    <div class="stack" style="gap:6px">${sec.map((k,i)=>`<div class="chk" style="align-items:center"><input type="checkbox" data-s="${k}"${on.has(k)?' checked':''}><span style="flex:1">${SECN[k]}</span><button class="btn sm ghost" data-up="${i}" aria-label="Move up"${i?'':' disabled'}>↑</button><button class="btn sm ghost" data-dn="${i}" aria-label="Move down"${i<sec.length-1?'':' disabled'}>↓</button></div>`).join('')}</div>
+    <h3>Gauges</h3><div class="chips" style="flex-wrap:wrap">${Object.keys(GCFG).filter(k=>!/^ws/.test(k)).map(k=>`<button class="chip" data-g="${k}" aria-pressed="${gs.has(k)}">${GCFG[k][0]}</button>`).join('')}</div>
+    <div class="row" style="justify-content:space-between"><button class="btn ghost" data-x="reset">Reset</button><div class="row"><button class="btn ghost" data-x="c">Cancel</button><button class="btn pri" data-x="ok">Save</button></div></div></div>`};draw();document.body.appendChild(m);
+  m.onclick=e=>{const t=e.target;if(t===m)return m.remove();const s=t.closest('[data-s]');if(s){s.checked?on.add(s.dataset.s):on.delete(s.dataset.s);return}const u=t.closest('[data-up]'),d=t.closest('[data-dn]'),g=t.closest('[data-g]'),x=t.closest('[data-x]');
+    if(u){const i=+u.dataset.up;[sec[i-1],sec[i]]=[sec[i],sec[i-1]];draw()}if(d){const i=+d.dataset.dn;[sec[i+1],sec[i]]=[sec[i],sec[i+1]];draw()}if(g){gs.has(g.dataset.g)?gs.delete(g.dataset.g):gs.add(g.dataset.g);draw()}
+    if(x){if(x.dataset.x==='c')return m.remove();if(x.dataset.x==='reset'){store.del('dash');m.remove();render();return}store.set('dash',{sec:sec.filter(k=>on.has(k)),gauges:Object.keys(GCFG).filter(k=>gs.has(k))});m.remove();render()}}}
+
+/* ---------- lessons (micro-learning) ---------- */
+const LESSONS=[
+ {id:'hyd',t:'Hydrostatic pressure and gradients',min:3,c:['Hydrostatic pressure is the pressure from the weight of a fluid column. It depends only on the fluid density and the true vertical depth (TVD), not on the hole size or measured depth.','In oilfield units: pressure (psi) = 0.052 × mud weight (ppg) × TVD (ft). The 0.052 converts ppg to psi per foot.','A gradient is pressure per foot: 0.052 × MW. Fresh water is about 0.433 psi/ft (8.33 ppg); a typical normal formation gradient is 0.433–0.465 psi/ft.','Equivalent mud weight turns any pressure at depth back into a density: EMW = P ÷ (0.052 × TVD). That is how leak-off pressures and ECD are compared with mud weight.'],
+  q:[['A well is 10,000 ft TVD and 12,000 ft MD with 10 ppg mud. What is the bottom-hole hydrostatic pressure?',['5,200 psi','6,240 psi','4,330 psi','5,720 psi'],0],['Which depth do you use for hydrostatic pressure?',['Measured depth','True vertical depth','Along-hole depth to the shoe','Depth of the bit nozzles'],1],['A pressure of 5,720 psi at 10,000 ft TVD equals an EMW of about:',['10 ppg','11 ppg','12 ppg','9.5 ppg'],1]]},
+ {id:'kick',t:'Kick warning signs',min:3,c:['Primary well control is the mud column: hydrostatic pressure above formation pressure. A kick is formation fluid entering the well when that barrier is lost.','Positive signs: flow with the pumps off, and a pit gain. Either one means shut the well in without waiting for confirmation.','Warning signs: drilling break (sudden ROP increase), rising flow return, pump pressure falling with strokes rising, gas-cut mud, change in cuttings, increasing torque and drag.','On trips the classic sign is the hole taking less mud than the calculated displacement (or giving back too much on the way in). Always use a trip sheet.'],
+  q:[['Which is a positive kick indicator?',['Rising torque','Flow with the pumps off','Gas-cut mud only','Higher cuttings volume'],1],['While pulling out, the hole takes 3 bbl less than calculated over five stands. This suggests:',['Losses','Swabbing an influx','Washout in the string','Normal tripping'],1],['A drilling break should be followed by:',['Increasing ROP further','A flow check','Pumping a slug','Circulating at a higher rate'],1]]},
+ {id:'drill',t:'The Driller’s method',min:4,c:['Two circulations at the slow kill rate. The first removes the influx using the original mud; the second replaces it with kill mud.','First circulation: bring the pump up to kill rate while holding casing pressure constant with the choke. Then hold drill pipe pressure at the initial circulating pressure (ICP = SCR pressure + SIDPP) until the influx is out.','As gas comes up it expands, so casing pressure rises. Do not chase casing pressure: hold drill pipe pressure and let the choke follow.','Second circulation: pump kill mud. Hold casing pressure constant while kill mud fills the string, then hold drill pipe pressure on the final circulating pressure (FCP) until kill mud returns.'],
+  q:[['SCR pressure 600 psi, SIDPP 400 psi. ICP is:',['200 psi','600 psi','1,000 psi','400 psi'],2],['During the first circulation, which gauge do you hold constant once at kill rate?',['Casing pressure','Drill pipe pressure','Pit volume','Pump strokes'],1],['Casing pressure rises as gas nears surface because:',['The choke is plugging','The gas expands and lightens the annulus','The pump rate increased','Mud weight increased'],1]]},
+ {id:'ww',t:'Wait and weight method',min:4,c:['One circulation: the mud is weighted to kill mud weight before pumping starts. KMW = original MW + SIDPP ÷ (0.052 × TVD).','While kill mud travels from surface to the bit, drill pipe pressure is stepped down from ICP to FCP following the kill sheet schedule.','FCP = SCR pressure × KMW ÷ original MW. Once kill mud reaches the bit, hold FCP until kill mud returns at surface.','Advantages: lower casing and shoe pressures for many kicks and one circulation. Disadvantages: time to weight up and a more complex schedule.'],
+  q:[['MW 10 ppg, SIDPP 520 psi, TVD 10,000 ft. KMW is:',['10.5 ppg','11.0 ppg','10.8 ppg','11.5 ppg'],1],['SCR 600 psi, MW 10, KMW 11. FCP is:',['600 psi','660 psi','545 psi','1,000 psi'],1],['During W&W, while kill mud fills the string, drill pipe pressure should:',['Stay at ICP','Rise','Fall from ICP to FCP','Fall to zero'],2]]},
+ {id:'maasp',t:'MAASP and shoe strength',min:3,c:['The weakest point in an open-hole section is usually just below the last casing shoe. A leak-off or formation integrity test measures how much pressure it takes.','MAASP (maximum allowable annular surface pressure) = (fracture EMW at shoe − current MW) × 0.052 × shoe TVD.','MAASP changes whenever mud weight changes: heavier mud means a lower MAASP. Recalculate it after every weight-up.','During a kill, exceeding MAASP risks breaking down the shoe and an underground blowout, but it is not a limit to protect at the cost of letting in more influx. Follow your company procedure.'],
+  q:[['Shoe TVD 5,000 ft, fracture EMW 14.5 ppg, MW 10 ppg. MAASP is:',['1,170 psi','2,600 psi','3,770 psi','900 psi'],0],['If mud weight increases, MAASP:',['Increases','Decreases','Stays the same','Doubles'],1],['The weakest point in open hole is usually:',['At TD','Just below the casing shoe','At the BOP','At surface'],1]]},
+ {id:'surge',t:'Surge and swab',min:3,c:['Moving pipe pushes or pulls mud. Running in raises bottom-hole pressure (surge); pulling out lowers it (swab).','Swab can reduce bottom-hole pressure below formation pressure and suck in an influx; surge can fracture weak formations and cause losses.','Effects are larger with high pipe speed, tight clearances (BHA, casing), high mud viscosity and gel strength, and closed-end pipe.','Control it with trip speed limits, a trip margin on mud weight, breaking circulation carefully and monitoring with a trip sheet.'],
+  q:[['Pulling pipe out of the hole tends to:',['Increase BHP','Decrease BHP (swab)','Not change BHP','Increase mud weight'],1],['Which increases swab pressure?',['Slower pulling','Larger annular clearance','Higher gel strength','Lower viscosity'],2],['A trip margin is:',['Extra mud weight to offset swab','The time allowed for a trip','The number of stands per hour','The slug volume'],0]]},
+ {id:'barrier',t:'Well barriers',min:3,c:['A well barrier is an envelope of one or more elements that prevents uncontrolled flow. Standards such as NORSOK D-010 and API RP 96 expect two independent, tested barriers during most operations.','Primary barrier while drilling: the mud column (hydrostatic overbalance). Secondary barrier: BOP, wellhead, casing and cement.','Each element must be verified: pressure tests for BOP and casing, cement evaluation, and mud weight checks.','If one barrier is lost, stop and restore two barriers before continuing.'],
+  q:[['The primary barrier while drilling is usually:',['The BOP','The mud column','The casing','The wellhead'],1],['How many independent barriers are normally required?',['One','Two','Three','None if the well is dead'],1],['A barrier element should be:',['Assumed to work','Tested and verified','Used only in emergencies','Removed after cementing'],1]]},
+ {id:'stuck',t:'Stuck pipe: differential or mechanical?',min:3,c:['Differential sticking: the string is pressed into a permeable zone by overbalance. Signs: pipe stationary before sticking, circulation free, cannot move or rotate.','Mechanical sticking: pack-off, hole collapse, key seat, undergauge hole or junk. Signs often appear while moving, and circulation may be restricted.','First actions: differential — work pipe with maximum allowed torque and slack-off, then consider spotting fluid or lowering mud weight. Pack-off — reduce pump rate, try to regain circulation, work pipe down.','Prevention: keep the string moving, minimise overbalance, good hole cleaning and quality filter cake.'],
+  q:[['Pipe stuck after a long connection, full circulation available. Most likely:',['Differential sticking','Pack-off','Key seat','Junk'],0],['With a pack-off, the first action is usually to:',['Increase pump rate','Reduce pump rate and try to regain circulation','Pull maximum overpull','Spot acid'],1],['Differential sticking is made worse by:',['Lower overbalance','Keeping pipe moving','High overbalance and thick filter cake','Rotating'],2]]}
+];
+PAGES.learn=v=>{
+  const prog=store.get('learn',{});let open=null,step=0,ans=[];
+  const draw=()=>{if(!open){const done=LESSONS.filter(l=>prog[l.id]).length;const tm=S.well==='training';
+      v.innerHTML=head('Lessons',`${LESSONS.length} short lessons of about three minutes, each with a quick quiz. Your progress is saved on this device.`)+
+      `<div class="readouts">${ro('Completed',done,'of '+LESSONS.length,'key')}${ro('Average score',done?fmt(LESSONS.filter(l=>prog[l.id]).reduce((a,l)=>a+prog[l.id],0)/done,0):'—','%')}</div>
+      <div class="card row" style="justify-content:space-between"><div><h3>Training mode ${tm?'<span class="pill warn">On</span>':''}</h3><p class="muted" style="font-size:14px">Practise on a separate training well with example data. Nothing you do there touches real wells or shared data.</p></div><button class="btn ${tm?'':'pri'}" id="tmTog">${tm?'Leave training mode':'Start training mode'}</button></div>
+      <div class="grid tiles">${LESSONS.map(l=>`<button class="card tile" data-l="${l.id}" style="text-align:left;cursor:pointer;color:var(--fg);font:inherit"><span class="tlink"><span class="tic">${prog[l.id]!=null?'✓':gico('Tools',20)}</span><span class="tx"><b>${esc(l.t)}</b><span>${l.min} min${prog[l.id]!=null?' · best '+prog[l.id]+'%':''}</span></span></span></button>`).join('')}</div>
+      <div class="row"><a class="btn" href="#trainer">Well control trainer</a><a class="btn" href="#wcsim">Well control simulator</a></div>`;
+      $('#tmTog').onclick=()=>trainingMode(S.well!=='training');return}
+    const l=LESSONS.find(x=>x.id===open);const n=l.c.length;
+    if(step<n){v.innerHTML=head(l.t,`Card ${step+1} of ${n} · then a ${l.q.length}-question quiz`)+`<div class="card" style="max-width:720px;font-size:18px;line-height:1.6;min-height:200px">${esc(l.c[step])}</div><div class="tutdots">${l.c.map((_,i)=>`<i class="${i===step?'on':''}"></i>`).join('')}</div><div class="row"><button class="btn" id="lb">${step?'Back':'All lessons'}</button><button class="btn pri" id="ln">${step===n-1?'Start quiz':'Next'}</button></div>`;
+      $('#lb').onclick=()=>{if(step)step--;else open=null;draw()};$('#ln').onclick=()=>{step++;ans=[];draw()};return}
+    const qi=ans.length;if(qi<l.q.length){const [q,opts]=l.q[qi];v.innerHTML=head(l.t,`Question ${qi+1} of ${l.q.length}`)+`<div class="card stack" style="max-width:720px"><h3>${esc(q)}</h3>${opts.map((o,i)=>`<button class="chip mcq" data-a="${i}">${esc(o)}</button>`).join('')}</div>`;
+      v.onclick=e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const ok=+b.dataset.a===l.q[qi][2];$$('[data-a]',v).forEach(x=>{x.disabled=true;if(+x.dataset.a===l.q[qi][2])x.classList.add('ok')});if(!ok)b.classList.add('bad');ans.push(ok);setTimeout(()=>{v.onclick=null;draw()},ok?700:1600)};return}
+    const sc=Math.round(ans.filter(Boolean).length/l.q.length*100);prog[l.id]=Math.max(prog[l.id]||0,sc);store.set('learn',prog);
+    v.innerHTML=head(l.t,'Lesson complete')+`<div class="readouts">${ro('Score',sc,'%',sc>=67?'key':'warn')}</div><p>${sc===100?'Perfect.':sc>=67?'Good. Review the cards for anything you missed.':'Worth another look: go through the cards again.'}</p><div class="row"><button class="btn" id="lr">Repeat</button><button class="btn pri" id="lo">All lessons</button></div>`;
+    $('#lr').onclick=()=>{step=0;ans=[];draw()};$('#lo').onclick=()=>{open=null;draw()}};
+  v.onclick=e=>{const b=e.target.closest('[data-l]');if(b&&!open){open=b.dataset.l;step=0;ans=[];draw()}};draw();
+};
+function trainingMode(on){if(on){if(!WELLS.find(w=>w.id==='training')){WELLS.push({id:'training',name:'Training well (practice)',rig:'Simulator',field:'Training',stage:'Drilling',spud:today(),events:[{d:today(),t:'Training well created'}]});store.set('wells',WELLS)}store.set('prevwell',S.well);S.well='training';toast('Training mode on: practise freely')}
+  else{const p=store.get('prevwell',null);S.well=WELLS.find(w=>w.id===p)?p:WELLS.find(w=>w.id!=='training').id;toast('Back to '+well().name)}saveS();fillWellSel();render()}
+(()=>{const r0=render;render=function(){r0.apply(this,arguments);if(S.well==='training'){const vw=$('#view');if(vw&&!$('#tmBan')){const b=document.createElement('div');b.id='tmBan';b.className='note row';b.style.justifyContent='space-between';b.innerHTML='<span><b>Training mode.</b> You are on the practice well; real wells are untouched.</span><button class="btn sm" id="tmOff">Leave training mode</button>';vw.prepend(b);$('#tmOff').onclick=()=>trainingMode(false)}}}})();
+
+/* ---------- report writer (template based) ---------- */
+PAGES.summary=v=>{
+  const w=well();const sys=S.sys;let kind=store.get('sumkind','shift');
+  const build=()=>{const ddr=store.get(wkey('ddr'),null),k=Object.assign({},KDEF,store.get(wkey('kill'),{})),bt=store.get(wkey('boptest'),null);const tasks=store.get(wkey('tasks'),[]);let kr=null;try{kr=killCalc(k)}catch(e){}
+    const P=x=>DN('pres',x,sys,0)+' '+sysUnit('pres',sys),Dn=x=>DN('dens',x,sys,2)+' '+sysUnit('dens',sys),Ln=x=>DN('len',x,sys,0)+' '+sysUnit('len',sys);
+    const ops=ddr&&ddr.ops?ddr.ops:[];const hrs=o=>{const t=s=>{const[a,b]=(s||'0:0').split(':').map(Number);return a+b/60};let h=t(o.t)-t(o.f);return h<0?h+24:h};const npt=ops.filter(o=>o.npt).reduce((a,o)=>a+hrs(o),0),tot=ops.reduce((a,o)=>a+hrs(o),0);
+    const out=[];out.push(`${w.name}${w.rig?' · '+w.rig:''}${w.field?' · '+w.field:''} — ${kind==='shift'?'Shift handover':kind==='daily'?'Daily summary':'Management update'}, ${ddr?ddr.date:today()}`);
+    if(ddr){const prog=(ddr.d1||0)-(ddr.d0||0);out.push(`Operations: ${ddr.sum||''} Depth ${Ln(ddr.d0||0)} to ${Ln(ddr.d1||0)} (${Ln(prog)} progress${tot?`, ${fmt(prog/Math.max(1,tot-npt),1)} ${sysUnit('len',sys)}/hr on productive time`:''}).`);
+      if(npt)out.push(`Non-productive time: ${fmt(npt,1)} hr (${fmt(npt/Math.max(tot,1)*100,0)}% of ${fmt(tot,1)} hr)${ops.filter(o=>o.npt).map(o=>' — '+o.x+(o.cat?' ['+o.cat+']':'')).join(';')}.`);
+      if(kind!=='mgmt'&&ddr.mud)out.push(`Mud: ${ddr.mud.type||''}, ${ddr.mud.mw||''}, PV ${ddr.mud.pv||'—'}, YP ${ddr.mud.yp||'—'}.`);
+      if(kind==='shift'&&ddr.bit)out.push(`Bit ${ddr.bit.no||''}: ${ddr.bit.size||''} ${ddr.bit.type||''}, ${ddr.bit.hrs||'—'} hr. BHA: ${ddr.bha||'—'}.`);
+      if(ddr.plan)out.push(`Plan: ${ddr.plan}`)}
+    else out.push('No daily drilling report saved for this well yet.');
+    if(kr)out.push(`Well control: kill mud weight ${Dn(kr.kmw)}, ICP ${P(kr.icp)}, FCP ${P(kr.fcp)}, MAASP ${P(kr.maasp)} with current mud. Slow circulating rate ${fmt(k.scrSpm,0)} spm at ${P(k.scr)}.`);
+    if(bt&&bt.rows){const fail=bt.rows.filter(r=>r.res==='Fail'),pend=bt.rows.filter(r=>r.res==='Pending');out.push(`Last BOP test ${bt.date}: ${bt.rows.length-fail.length-pend.length} passed${fail.length?`, ${fail.length} FAILED (${fail.map(r=>r.n).join(', ')})`:''}${pend.length?`, ${pend.length} pending`:''}.`)}
+    const open=tasks.filter(t=>t.st!=='Done');if(open.length)out.push(`Open actions (${open.length}): ${open.slice(0,kind==='mgmt'?3:8).map(t=>t.t+(t.who?' — '+t.who:'')+(t.due&&t.due<today()?' (overdue)':'')).join('; ')}.`);
+    const due=store.get('maint',[]).filter(m=>m.last+m.int-m.hrs<m.int*0.1);if(due.length&&kind!=='mgmt')out.push(`Equipment: ${due.map(m=>m.n+' service '+(m.last+m.int-m.hrs<0?'overdue':'due')).join('; ')}.`);
+    return out};
+  const draw=()=>{const lines=build();v.innerHTML=head('Report writer','Writes a plain-language summary from what is already saved for this well: the DDR, kill sheet, BOP test, tasks and maintenance. Edit it before sending.',`<button class="btn" id="smCopy">Copy</button><button class="btn" id="smShare">Share</button><button class="btn pri" id="xExp">Export</button>`)+
+    `<div class="chips" id="smK">${[['shift','Shift handover'],['daily','Daily summary'],['mgmt','Management update']].map(([k2,l])=>`<button class="chip" data-k="${k2}" aria-pressed="${k2===kind}">${l}</button>`).join('')}</div>
+    <textarea id="smT" style="min-height:360px;font-size:15px;line-height:1.6">${esc(lines.join('\n\n'))}</textarea><p class="muted" style="font-size:13px">Template-based: every sentence comes from your saved data, nothing is invented. Check it before sending.</p>`;
+    $('#smK').onclick=e=>{const b=e.target.closest('[data-k]');if(b){kind=b.dataset.k;store.set('sumkind',kind);draw()}};
+    $('#smCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#smT').value);toast('Copied')}catch(e){$('#smT').select();toast('Select all and copy')}};
+    $('#smShare').onclick=async()=>{try{if(navigator.share){await navigator.share({title:w.name+' report',text:$('#smT').value});return}}catch(e){if(e.name==='AbortError')return}saveFile(w.name.replace(/\W+/g,'_')+'_summary_'+today()+'.txt',$('#smT').value)};
+    $('#xExp').onclick=()=>exportDialog({title:'Report summary',file:'Report_Summary',build:()=>({title:'Report summary',file:'Report_Summary',tables:[{title:'Summary',head:['Text'],body:$('#smT').value.split(/\n\n+/).map(p=>[p])}]})})};draw();
+};
+
+/* ---------- emissions log ---------- */
+PAGES.emissions=v=>listPage(v,{key:wkey('emis'),title:'Emissions log',desc:'Daily fuel, flaring and grid power for this well, converted to CO₂-equivalent with standard factors (diesel 2.68 kg/L, flared gas 2.0 kg/m³ assuming 98% combustion, grid 0.4 kg/kWh: change them to your own). Enter meter readings by hand; automatic logging needs connected meters.',exportTitle:'Emissions log',
+  cols:[{k:'d',l:'Date',t:'date',w:150},{k:'dsl',l:'Diesel (L)',t:'number',w:110},{k:'fl',l:'Flared gas (m³)',t:'number',w:120},{k:'kwh',l:'Grid power (kWh)',t:'number',w:120},{k:'fd',l:'kg CO₂/L',t:'number',w:90},{k:'ff',l:'kg CO₂e/m³',t:'number',w:100},{k:'fg',l:'kg CO₂/kWh',t:'number',w:100},{k:'_t',l:'Total (t CO₂e)',n:1,calc:r=>fmt(((r.dsl||0)*(r.fd||0)+(r.fl||0)*(r.ff||0)+(r.kwh||0)*(r.fg||0))/1000,2)}],
+  blank:()=>({d:today(),dsl:0,fl:0,kwh:0,fd:2.68,ff:2.0,fg:0.4}),sample:()=>[{d:today(),dsl:9000,fl:0,kwh:0,fd:2.68,ff:2.0,fg:0.4}],
+  extra:(el,d)=>{const t=d.reduce((a,r)=>a+((r.dsl||0)*(r.fd||0)+(r.fl||0)*(r.ff||0)+(r.kwh||0)*(r.fg||0))/1000,0);el.innerHTML=`<div class="readouts">${ro('Days logged',d.length,'')}${ro('Total',fmt(t,1),'t CO₂e','key')}${ro('Average per day',d.length?fmt(t/d.length,2):'—','t CO₂e')}</div>`}});
+
+/* ---------- navigation, descriptions, roadmap ---------- */
+(()=>{const add=(g,items,after)=>{const grp=NAV.find(x=>x[0]===g);if(grp)grp[1].push(...items);else NAV.splice(NAV.findIndex(x=>x[0]===after)+1,0,[g,items])};
+  add('Engineering',[['triax','Casing triaxial and wear'],['mpdsched','MPD connection schedule']]);
+  add('Production and data',[['plt','Production logging and ICVs']]);
+  add('Operations',[['capture','Field capture'],['summary','Report writer']]);
+  add('Cost & performance',[['emissions','Emissions log']]);
+  const t=NAV.find(x=>x[0]==='Tools');const ri=t[1].findIndex(x=>x[0]==='trainer');t[1].splice(ri+1,0,['wcsim','Well control simulator'],['learn','Lessons']);
+  add('Data and security',[['security','Security and privacy'],['versions','Version history'],['datahub','Share and export'],['automate','Automation and reminders']],'Reference');
+  NAV.flatMap(g=>g[1]).forEach(x=>{TITLES[x[0]]=x[1]});NAV.forEach(([g,it])=>it.forEach(x=>MODG[x[0]]=g));
+  GI['Data and security']='<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>';
+  Object.assign(DESC,{triax:'Von Mises check, wear groove derating, critical speeds',mpdsched:'Back-pressure and choke size through a connection',plt:'Spinner flow profile and ICV rate allocation',capture:'Photos, video, voice notes, QR and GPS',summary:'Shift and daily summaries from your data',emissions:'Fuel, flare and power to CO₂e',wcsim:'Circulate a kick out: you run the choke',learn:'Three-minute lessons with quizzes',security:'App lock, roles, activity log, encrypted backup',versions:'Save and restore versions of a well',datahub:'Well files, data-lake export and webhooks',automate:'Alerts for service, tasks, certificates, pits'});
+  Object.assign(HI,{'Data and security':'डेटा और सुरक्षा','Casing triaxial and wear':'केसिंग ट्राइएक्सियल और घिसाव','MPD connection schedule':'MPD कनेक्शन शेड्यूल','Production logging and ICVs':'प्रोडक्शन लॉगिंग और ICV','Field capture':'फ़ील्ड कैप्चर','Report writer':'रिपोर्ट लेखक','Emissions log':'उत्सर्जन लॉग','Well control simulator':'वेल कंट्रोल सिम्युलेटर','Lessons':'पाठ','Security and privacy':'सुरक्षा और गोपनीयता','Version history':'संस्करण इतिहास','Share and export':'साझा और निर्यात','Automation and reminders':'स्वचालन और रिमाइंडर'});
+  const st={4:['B','Works fully offline from device storage; installable website caches itself; shared data syncs when online'],10:['B','Shared wells and sheets, roles per device, activity log with names, view-only mode'],16:['B','Every module saves per well; lifecycle, timeline, location, versions and well files'],
+   21:['B','Casing design, triaxial VME, casing wear, vibration critical speeds, cementing, hydraulics, PPFG, stuck pipe'],22:['B','Surface back-pressure calculator and MPD connection schedule with choke sizing'],26:['B','ESP and rod pump sizing; interval control valve (ICV) rate allocation'],27:['B','Horner build-up analysis and spinner production log interpretation'],
+   43:['B','Field capture: record video and add time-stamped notes (stored on device)'],46:['B','Driller’s method simulator with live choke, gas expansion, delay, influx and losses'],50:['B','Share a whole well as a file over Bluetooth, Nearby Share, AirDrop or USB, no server'],51:['B','Inventory QR labels and in-app camera scanning (Chrome on Android)'],52:['B','Field capture: photos with drawing, labels and GPS, stored on device'],57:['B','Well GPS location, distance and bearing between wells, open in maps'],
+   63:['B','Full JSON and NDJSON export for data lakes'],72:['D','Device roles, PIN lock and activity log; single sign-on and 2FA need an identity server'],73:['D','AES-256 encrypted backups and HTTPS hosting; encrypted shared storage needs a backend'],75:['D','Webhooks on save; a versioned public API needs a server'],81:['B','Erase a single well or everything, export your data first'],
+   86:['B','Well-keyed storage for every module, with versions and well files'],87:['B','Version history for every module of a well, plus signed report history'],89:['D','Outgoing webhooks; an inbound open API needs a server'],92:['D','Rules and reminders run while the app is open; background rules need a server'],93:['B','Customisable home: choose sections, order and gauges'],97:['D','Emissions log from meter readings; automatic monitoring needs connected meters'],
+   101:['B','Emissions log plus water, waste, energy and carbon export'],105:['D','Phone notifications from rules while the app runs; push when closed needs a server'],106:['B','App lock with PIN and fingerprint or face unlock (WebAuthn)'],107:['B','Voice notes with speech-to-text dictation (Chrome, Android)'],108:['B','Measure on a photo using a reference of known size'],110:['B','Training mode on a separate practice well'],113:['B','Eight three-minute lessons with quizzes'],
+   37:['D','Template-based report writer from saved data; free-text AI writing removed at the owner’s request']};
+  RM.forEach(r=>{const n=+r[0];if(st[n]){r[2]=st[n][0];r[3]=st[n][1]}});
+})();
+
+shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
 </script>
 
