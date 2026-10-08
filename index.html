@@ -10,6 +10,23 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="DrillMaster Pro">
+<title>DrillMaster Pro — drilling engineering calculator</title>
+<meta name="description" content="Kill and trip sheets, 90+ drilling formulas, well control simulator, torque and drag, casing design and field reports. Works offline on phone, tablet and PC.">
+<link rel="canonical" href="https://drillmaster.dxvisionapp.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DrillMaster Pro">
+<meta property="og:title" content="DrillMaster Pro — drilling engineering in your pocket">
+<meta property="og:description" content="Kill and trip sheets, 90+ formulas, well control simulator, torque and drag, casing design. Works offline.">
+<meta property="og:url" content="https://drillmaster.dxvisionapp.com/">
+<meta property="og:image" content="https://drillmaster.dxvisionapp.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DrillMaster Pro logo with a pressure gauge">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DrillMaster Pro — drilling engineering in your pocket">
+<meta name="twitter:description" content="Kill and trip sheets, 90+ formulas, well control simulator, torque and drag, casing design. Works offline.">
+<meta name="twitter:image" content="https://drillmaster.dxvisionapp.com/og.png">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -453,12 +470,23 @@ tr:hover td{background:rgba(255,107,0,.04)}
 .ro .v small{white-space:nowrap}
 .readouts .ro>.eyebrow{min-height:2.5em;display:flex;align-items:flex-end}
 .gauges .gauge .gl{min-height:0}
+/* unit switch, validation, help tips, warnings */
+.syssw{flex:none}.syssw button{min-height:36px;padding:0 12px;font:700 12px var(--f-mono);letter-spacing:.06em}
+.fld{position:relative}
+.vmsg{position:absolute;left:0;top:calc(100% + 3px);z-index:6;font:600 11.5px/1.3 var(--f-body);padding:3px 8px;border-radius:6px;background:var(--crit);color:#fff;pointer-events:none;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vmsg.warn{background:var(--warn);color:#1a1200}
+input.warnin{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.qm{display:inline-grid;place-items:center;width:17px;height:17px;margin-left:6px;border-radius:50%;border:1px solid var(--line2);color:var(--accent);font:700 11px/1 var(--f-body);cursor:help;vertical-align:1px;user-select:none}
+.qm:hover,.qm:focus-visible{background:var(--accent);color:#fff;border-color:var(--accent);outline:none}
+.tippop{position:fixed;z-index:90;padding:10px 12px;border-radius:10px;background:rgba(28,28,28,.97);color:#fff;border:1px solid rgba(255,107,0,.45);font:13.5px/1.45 var(--f-body);box-shadow:0 12px 32px rgba(0,0,0,.5)}
+:root[data-theme="light"] .tippop{background:#fff;color:#1a1810}
+.fcard.fcrit{border-color:rgba(255,77,77,.6);box-shadow:0 0 0 1px rgba(255,77,77,.3),0 10px 36px -14px rgba(255,77,77,.5)}
+.fwarn:empty{display:none}
+.fcard .foot{flex-wrap:wrap;gap:8px}
+@media (max-width:860px){.syssw button{padding:0 9px;min-height:40px}}
+.fcard .ins .fld>.vmsg{position:static;grid-column:1/-1;justify-self:end;margin-top:-4px}
 </style>
 <div id="root"></div>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="application/json" id="formula-data">
 [
 {"id":"hyd","c":"Pressure & Well Control","n":"Hydrostatic pressure","d":"Pressure exerted by a static column of fluid.","i":[["MW","Mud weight","dens",10],["TVD","True vertical depth","len",10000]],"s":[["HP","Hydrostatic pressure","0.052*MW*TVD","pres"]]},
@@ -567,7 +595,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const clone=o=>JSON.parse(JSON.stringify(o));
 let lastSave=null;
 /* shared-data bookkeeping: which keys sync to the team store */
-const LOCAL_KEYS=/^(settings|funits|fglobal|ufields|theme2|trainbest|handcalc|rigeqc|tutorial|tubgd|tubgc|tubcc|tubfav|bopview|_st|lock|audit|role|hooks|rules|rulefired|rulelog|ver\..*|dash|learn|trainmode|prevwell|caps|sumkind|.*\.training)$/;
+const LOCAL_KEYS=/^(settings|funits|fglobal|ufields|theme2|trainbest|handcalc|rigeqc|tutorial|tubgd|tubgc|tubcc|tubfav|bopview|_st|lock|audit|role|hooks|rules|rulefired|rulelog|ver\..*|dash|learn|trainmode|prevwell|caps|sumkind|fhist|fpresets|.*\.training)$/;
 const isShared=k=>!LOCAL_KEYS.test(k);
 const SH={db:null,user:null,on:false,ro:false,uid:null,meta:{},timers:{},busy:{},again:{},names:{},pending:false,warned:false};
 let stamps={};try{stamps=JSON.parse(localStorage.getItem('dmp:_st')||'{}')||{}}catch(e){}
@@ -3105,6 +3133,126 @@ PAGES.emissions=v=>listPage(v,{key:wkey('emis'),title:'Emissions log',desc:'Dail
    37:['D','Template-based report writer from saved data; free-text AI writing removed at the owner’s request']};
   RM.forEach(r=>{const n=+r[0];if(st[n]){r[2]=st[n][0];r[3]=st[n][1]}});
 })();
+/* ================= 14. Polish: unit switch, validation, help tips, presets & history, result warnings, lazy libraries ================= */
+
+/* ---------- lazy-loaded libraries (faster first load; prefetched when idle so exports still work offline) ---------- */
+const LIBS={pdf:['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js','https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'],xlsx:['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'],qr:['https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js']};
+const LIBP={};
+const loadScript=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Could not load '+src.split('/')[4]+' (offline?)'));document.head.appendChild(s)});
+const need=k=>LIBP[k]||(LIBP[k]=LIBS[k].reduce((p,src)=>p.then(()=>loadScript(src)),Promise.resolve()).catch(e=>{delete LIBP[k];throw e}));
+(()=>{const p0=exportPDF,x0=exportXLSX;exportPDF=async function(r){await need('pdf');return p0(r)};exportXLSX=async function(r){await need('xlsx');return x0(r)};
+  const inv=PAGES.inventory;PAGES.inventory=v=>{need('qr').catch(()=>{});return inv(v)};
+  const idle=window.requestIdleCallback||(f=>setTimeout(f,1));setTimeout(()=>idle(()=>{['pdf','xlsx','qr'].forEach(k=>need(k).catch(()=>{}))}),6000)})();
+
+/* ---------- one-tap unit system switch in the top bar ---------- */
+function setSys(k){if(S.sys===k)return;S.sys=k;saveS();clearUF();Object.keys(FU).forEach(x=>delete FU[x]);store.set('fglobal',FU);Object.keys(fUnits).forEach(x=>delete fUnits[x]);store.set('funits',fUnits);render();toast(k==='metric'?'Metric / SI units: m, kg/m³-SG, bar, m³':'Oilfield (API) units: ft, ppg, psi, bbl');syncSysSw()}
+function syncSysSw(){$$('#sysSw [data-sys]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.sys===S.sys))}
+(()=>{const sh0=shell;shell=function(){sh0.apply(this,arguments);const wp=$('.top .wellpick');if(wp&&!$('#sysSw')){const d=document.createElement('div');d.className='seg syssw';d.id='sysSw';d.setAttribute('role','group');d.setAttribute('aria-label','Unit system');
+  d.innerHTML='<button type="button" data-sys="oilfield" title="Oilfield (API): ft, ppg, psi, bbl">API</button><button type="button" data-sys="metric" title="Metric / SI: m, SG, bar, m³">SI</button>';wp.after(d);d.onclick=e=>{const b=e.target.closest('[data-sys]');if(b)setSys(b.dataset.sys)};syncSysSw()}}})();
+
+/* ---------- live input validation ---------- */
+const NONNEG=new Set(['len','dia','vol','cap','dens','flow','wpl','stk','pres','rop','vel']);
+function vCheck(inp){if(inp.type!=='number')return;const fld=inp.closest('.fld');if(!fld)return;const raw=inp.value.trim();let msg='',lvl='';
+  const sel=inp.parentElement&&inp.parentElement.querySelector('select[data-d]');const d=inp.dataset.dim||(sel&&sel.dataset.d)||'';const u=sel?sel.value:(inp.parentElement&&inp.parentElement.querySelector('.u')||{}).textContent||'';const v=num(raw);
+  if(raw==='')msg='';else if(!Number.isFinite(v)){msg='Not a number';lvl='bad'}
+  else if(NONNEG.has(d)&&v<0){msg='Cannot be negative';lvl='bad'}
+  else if(d==='dens'&&isDim('dens')){const ppg=toB('dens',u||sysUnit('dens'),v);if(ppg>0&&(ppg<6.5||ppg>22)){msg=ppg<6.5?'Unusually light for a drilling fluid':'Heavier than any normal mud';lvl='warn'}}
+  else if((u==='%'||d==='%')&&(v<0||v>100)){msg='Should be between 0 and 100 %';lvl='bad'}
+  else if(d==='len'&&v===0&&/depth|tvd|length/i.test((fld.querySelector('span')||{}).textContent||'')){msg='Depth of zero gives no result';lvl='warn'}
+  inp.classList.toggle('bad',lvl==='bad');inp.classList.toggle('warnin',lvl==='warn');let m=fld.querySelector(':scope>.vmsg');if(msg){if(!m){m=document.createElement('small');m.className='vmsg';m.setAttribute('role','alert');fld.appendChild(m)}m.textContent=msg;m.className='vmsg '+lvl}else if(m)m.remove()}
+document.addEventListener('input',e=>{if(e.target.matches&&e.target.matches('#view input[type="number"]'))vCheck(e.target)},true);
+document.addEventListener('change',e=>{if(e.target.matches&&e.target.matches('#view select[data-d]')){const i=e.target.parentElement.querySelector('input[type="number"]');if(i)setTimeout(()=>vCheck(i),0)}},true);
+
+/* ---------- "?" help tips on oilfield terms ---------- */
+const TIPS=[
+ [/\bTVD\b|true vertical depth/i,'True vertical depth: straight-down depth from the rig floor. Used for every pressure calculation.'],
+ [/\bMD\b|measured depth/i,'Measured depth: length along the wellbore. Used for volumes and pipe lengths.'],
+ [/\bSIDPP\b|shut-in drill pipe/i,'Shut-in drill pipe pressure: drill pipe gauge reading after a kick is shut in and stabilised. Shows how far formation pressure exceeds the mud column.'],
+ [/\bSICP\b|shut-in casing/i,'Shut-in casing pressure: annulus (choke) gauge after shut-in. Usually higher than SIDPP because the influx is lighter than mud.'],
+ [/\bSCR\b|slow circulating|kill rate/i,'Slow circulating rate: pump pressure recorded at a low kill rate (e.g. 30 spm) each shift. Basis of ICP and FCP.'],
+ [/\bICP\b|initial circulating/i,'Initial circulating pressure = SCR pressure + SIDPP. Drill pipe pressure to hold when starting to circulate a kick out.'],
+ [/\bFCP\b|final circulating/i,'Final circulating pressure = SCR × kill mud ÷ original mud. Drill pipe pressure once kill mud reaches the bit.'],
+ [/\bKMW\b|kill mud/i,'Kill mud weight: density that balances formation pressure. KMW = MW + SIDPP ÷ (0.052 × TVD).'],
+ [/\bMAASP\b/i,'Maximum allowable annular surface pressure: casing pressure that would fracture the weakest point (usually the shoe).'],
+ [/\bLOT\b|leak-off|\bFIT\b|fracture EMW|fracture gradient/i,'Leak-off or formation integrity test result, as an equivalent mud weight: the pressure the formation below the shoe can take.'],
+ [/\bEMW\b|equivalent mud weight/i,'Equivalent mud weight: any pressure at depth expressed as a mud density, P ÷ (0.052 × TVD).'],
+ [/\bECD\b|equivalent circulating/i,'Equivalent circulating density: mud weight plus annular friction while pumping, as a density at depth.'],
+ [/mud weight|\bMW\b|fluid weight|slurry weight/i,'Density of the fluid in the well (ppg, SG or kg/m³). Sets hydrostatic pressure.'],
+ [/\bPV\b|plastic viscosity/i,'Plastic viscosity (cP) = 600 rpm − 300 rpm dial reading. Rises with solids content.'],
+ [/\bYP\b|yield point/i,'Yield point (lb/100 ft²) = 300 rpm reading − PV. Ability of the mud to carry cuttings.'],
+ [/\bTFA\b|flow area/i,'Total flow area of the bit nozzles (in²). Smaller TFA gives higher jet velocity and bit pressure drop.'],
+ [/\bHSI\b/i,'Hydraulic horsepower per square inch of bit face. Rule of thumb 2.5–5 for good bit cleaning.'],
+ [/\bROP\b|rate of penetration/i,'Rate of penetration: drilling speed in ft/hr or m/hr.'],
+ [/\bWOB\b|weight on bit/i,'Weight on bit: part of the string weight set down on the bit, from the hook load difference.'],
+ [/\bSPM\b|strokes per minute/i,'Pump strokes per minute. Multiply by pump output for flow rate.'],
+ [/pump output/i,'Volume delivered per pump stroke (bbl/stk). Depends on liner size, stroke length and efficiency.'],
+ [/annular capacity/i,'Volume per foot between hole (or casing ID) and pipe OD: (D² − d²) ÷ 1029.4 bbl/ft.'],
+ [/pipe capacity|string capacity/i,'Volume per foot inside the pipe: ID² ÷ 1029.4 bbl/ft.'],
+ [/displacement/i,'Steel volume of pipe per foot. Closed-end displacement also counts the fluid inside the pipe.'],
+ [/buoyancy/i,'Buoyancy factor: fraction of air weight left in mud, (65.5 − MW) ÷ 65.5 for steel.'],
+ [/neutral point/i,'Point in the string with zero axial stress. Keep it inside the BHA (collars) so drill pipe is not in compression.'],
+ [/overpull/i,'Pull available above the current hook load before reaching the pipe design limit.'],
+ [/\bMSE\b|specific energy/i,'Mechanical specific energy: energy to remove a unit volume of rock. Compare with rock strength to judge drilling efficiency.'],
+ [/\bDLS\b|dogleg/i,'Dogleg severity: change of well direction per 100 ft (or 30 m), in degrees.'],
+ [/inclination/i,'Angle of the wellbore from vertical (0° vertical, 90° horizontal).'],
+ [/azimuth/i,'Compass direction of the wellbore, degrees from north.'],
+ [/kick tolerance/i,'Largest kick volume that can be shut in and circulated out without fracturing the shoe.'],
+ [/pit gain|kick size/i,'Mud volume gained in the pits when an influx enters the well. Equals the influx volume.'],
+ [/trip margin/i,'Extra mud weight carried to offset swab pressure when pulling out of the hole.'],
+ [/\bSBP\b|back-pressure/i,'Surface back-pressure applied with the MPD choke to hold bottom-hole pressure constant.'],
+ [/annular friction|\bAFP\b|\bAPL\b/i,'Pressure lost to friction in the annulus while circulating. Adds to bottom-hole pressure.'],
+ [/\bCv\b/,'Valve flow coefficient: flow in gpm of water at 1 psi pressure drop. Higher Cv means less restriction.'],
+ [/\bPI\b/,'Productivity index: production rate per psi of drawdown (bbl/d/psi).'],
+ [/spinner/i,'Production logging tool impeller: revolutions per second rise with fluid velocity past the tool.'],
+ [/wear factor/i,'Casing wear factor (×10⁻¹⁰ /psi): wear volume per unit side force and sliding distance. Depends on mud and hardbanding.'],
+ [/side force/i,'Contact force per foot pressing the string against the casing, highest in doglegs and under tension.'],
+ [/design factor|safety factor/i,'Ratio of rated strength to load. Must be at or above the design factor in your company standard.'],
+ [/\bSCR\b|slow pump/i,'Slow circulating rate pressure.']
+];
+function addTips(root){root.querySelectorAll('.fld>span:first-child:not([data-qm]),.res>span:first-child:not([data-qm])').forEach(sp=>{sp.dataset.qm='1';const t=sp.textContent;const hit=TIPS.find(([re])=>re.test(t));if(!hit)return;const q=document.createElement('span');q.className='qm';q.setAttribute('role','button');q.tabIndex=0;q.setAttribute('aria-label','What is this?');q.textContent='?';q.dataset.tip=hit[1];sp.appendChild(q)})}
+let TIPEL=null;
+function showTip(q){hideTip();const t=document.createElement('div');t.className='tippop';t.setAttribute('role','tooltip');t.textContent=q.dataset.tip;document.body.appendChild(t);const r=q.getBoundingClientRect();const w=Math.min(300,innerWidth-24);t.style.width=w+'px';let x=Math.min(Math.max(12,r.left+r.width/2-w/2),innerWidth-w-12);let y=r.bottom+8;if(y+t.offsetHeight>innerHeight-8)y=r.top-t.offsetHeight-8;t.style.left=x+'px';t.style.top=y+'px';TIPEL=t}
+function hideTip(){if(TIPEL){TIPEL.remove();TIPEL=null}}
+document.addEventListener('click',e=>{const q=e.target.closest&&e.target.closest('.qm');if(q){e.preventDefault();e.stopPropagation();TIPEL&&TIPEL._q===q?hideTip():(showTip(q),TIPEL._q=q);return}hideTip()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('qm')){e.preventDefault();showTip(e.target)}});
+addEventListener('scroll',hideTip,{passive:true});
+(()=>{let t=null;const mo=new MutationObserver(()=>{clearTimeout(t);t=setTimeout(()=>{const v=$('#view');if(v)addTips(v)},60)});const start=()=>{const v=$('#view');if(v){mo.observe(v,{childList:true,subtree:true});addTips(v)}else setTimeout(start,200)};start()})();
+
+/* ---------- formula result warnings ---------- */
+const FWARN={
+ ob:v=>v.OB<0?['crit','Underbalanced: formation pressure is higher than the mud column. Kick risk.']:v.OB<200?['warn','Overbalance under 200 psi: little margin for swab or gas cutting.']:v.OB>1500?['warn','High overbalance: differential sticking and loss risk.']:null,
+ maasp:v=>v.MAASP<=0?['crit','No margin: current mud weight is at or above the shoe fracture EMW.']:v.MAASP<300?['warn','MAASP under 300 psi: small kick tolerance.']:null,
+ kmw:v=>v.KMW>18?['warn','Very heavy kill mud: check shoe strength and barite supply.']:null,
+ mop:v=>v.MOP<0?['crit','Hook load already exceeds the design limit.']:v.MOP<50000?['warn','Less than 50 klbf margin of overpull.']:null,
+ av:v=>v.AV<100?['warn','Annular velocity under 100 ft/min: poor hole cleaning in near-vertical hole.']:null,
+ hsi:v=>v.HSI<1?['warn','HSI below 1: weak bit cleaning; consider smaller nozzles or higher flow.']:null,
+ pctbit:v=>v.PCT<50?['warn','Less than 50% of pump pressure at the bit.']:null,
+ infl:v=>!Number.isFinite(v.GI)?null:v.GI<0.25?['crit','Influx gradient under 0.25 psi/ft: likely gas.']:v.GI<0.4?['warn','Influx gradient 0.25–0.40 psi/ft: oil or mixed.']:['info','Influx gradient above 0.40 psi/ft: likely water.'],
+ drylen:v=>v.L<300?['warn','Under 300 ft of dry pipe before losing overbalance: pump a slug or fill continuously.']:null,
+ drypull:v=>v.DPR>100?['warn','Pressure drop over 100 psi: fill the hole more often.']:null,
+ wetpull:v=>v.DPR>100?['warn','Pressure drop over 100 psi: fill the hole more often.']:null,
+ bf:v=>v.BF<0?['crit','Mud heavier than steel: check the input.']:null
+};
+
+/* ---------- formula presets and calculation history ---------- */
+const FPEND={x:null};const FH={t:{}};
+(()=>{const fc0=fCard;fCard=function(f){return fc0(f).replace('<button class="btn sm ghost" data-copy>','<div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm ghost" data-psave title="Save these inputs as a preset">Save preset</button><button class="btn sm ghost" data-plist title="Load a saved preset">Presets</button><button class="btn sm ghost" data-copy>').replace('Copy result</button></div></article>','Copy result</button></div></div><div class="fwarn"></div></article>')};
+  const fx0=fCompute;fCompute=function(card){fx0(card);const f=F.find(x=>x.id===card.dataset.id);const w=$('.fwarn',card);const r=card._last;
+    const out=r&&FWARN[f.id]?FWARN[f.id](r.vars):null;if(w)w.innerHTML=out?`<div class="note ${out[0]==='warn'?'':out[0]}" role="status">${esc(out[1])}</div>`:'';card.classList.toggle('fcrit',!!out&&out[0]==='crit');
+    if(r&&!$$('input.bad',card).length){clearTimeout(FH.t[f.id]);FH.t[f.id]=setTimeout(()=>{if(!card.isConnected)return;const vals={};f.i.forEach(([k])=>vals[k]=r.vars[k]);const last=f.s[f.s.length-1];const h=store.get('fhist',[]);const sig=f.id+JSON.stringify(vals);if(h[0]&&h[0].sig===sig)return;h.unshift({sig,id:f.id,t:Date.now(),vals,out:[last[1],r.vars[last[0]],last[3]]});h.length=Math.min(h.length,80);store.set('fhist',h)},2500)}};
+  const pf0=PAGES.formulas;PAGES.formulas=v=>{pf0(v);const hb=document.createElement('button');hb.className='btn';hb.textContent='Calculation history';hb.onclick=histModal;const ph=$('.pagehead',v);if(ph)ph.appendChild(hb);
+    if(FPEND.x){const {id,vals}=FPEND.x;FPEND.x=null;const card=$(`.fcard[data-id="${id}"]`,v);if(card){loadVals(card,vals);card.scrollIntoView({block:'center'});card.style.boxShadow='var(--glow)'}}};})();
+function loadVals(card,vals){const f=F.find(x=>x.id===card.dataset.id);f.i.forEach(([k,,d])=>{if(!(k in vals))return;const inp=$(`[data-k="${k}"]`,card),sel=$(`[data-u="${k}"]`,card);inp.value=fmtIn(isDim(d)&&sel?fromB(d,sel.value,vals[k]):vals[k])});fCompute(card)}
+function openFormula(id,vals){const f=F.find(x=>x.id===id);if(!f)return;FS.q=f.n;FS.cat='All';FPEND.x={id,vals};if(route()==='formulas')render();else location.hash='#formulas'}
+function histModal(){const h=store.get('fhist',[]);const m=document.createElement('div');m.className='modal';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+  m.innerHTML=`<div class="card" style="width:min(720px,100%);max-height:86vh"><div class="row" style="justify-content:space-between"><h2>Calculation history</h2><button class="btn sm ghost danger" data-hc>Clear</button></div><p class="muted" style="font-size:13px">Your last ${h.length} formula calculations on this device. Open one to reload its inputs.</p>
+  <div class="palres">${h.map((x,i)=>{const f=F.find(y=>y.id===x.id);if(!f)return'';const u=isDim(x.out[2])?sysUnit(x.out[2]):x.out[2];const val=isDim(x.out[2])?fromB(x.out[2],u,x.out[1]):x.out[1];return `<div class="pitem" style="padding:8px;gap:10px"><div class="tx" style="flex:1"><b>${esc(LN(f))}</b><span>${new Date(x.t).toLocaleString()} · ${esc(x.out[0])} <b class="mono" style="font-size:13px">${fmt(val)} ${esc(u)}</b></span></div><button class="btn sm" data-ho="${i}">Open</button></div>`}).join('')||'<p class="muted">No calculations yet. Results are saved a few seconds after you stop typing.</p>'}</div><button class="btn ghost" data-hx>Close</button></div>`;
+  document.body.appendChild(m);m.onclick=e=>{if(e.target===m||e.target.closest('[data-hx]'))return m.remove();const o=e.target.closest('[data-ho]');if(o){const x=h[+o.dataset.ho];m.remove();openFormula(x.id,x.vals)}if(e.target.closest('[data-hc]')){store.del('fhist');m.remove();toast('History cleared')}}}
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('[data-psave],[data-plist]');if(!b)return;const card=b.closest('.fcard');const f=F.find(x=>x.id===card.dataset.id);const all=store.get('fpresets',{});
+  if(b.dataset.psave!==undefined){if(!card._last)return toast('Fix the inputs first');const name=await ask({title:'Save preset',msg:LN(f),input:'text',ok:'Save'});if(!name)return;const vals={};f.i.forEach(([k])=>vals[k]=card._last.vars[k]);(all[f.id]=all[f.id]||[]).unshift({name,vals,t:Date.now()});store.set('fpresets',all);toast('Preset “'+name+'” saved');return}
+  const list=all[f.id]||[];if(!list.length)return toast('No presets yet for this formula. Use Save preset.');
+  const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h2>Presets · ${esc(LN(f))}</h2><div class="stack" style="gap:6px">${list.map((p,i)=>`<div class="row" style="flex-wrap:nowrap"><button class="btn" style="flex:1;justify-content:flex-start" data-pl="${i}">${esc(p.name)}</button><button class="btn sm ghost danger" data-pd="${i}" aria-label="Delete preset">✕</button></div>`).join('')}</div><button class="btn ghost" data-px>Close</button></div>`;document.body.appendChild(m);
+  m.onclick=ev=>{if(ev.target===m||ev.target.closest('[data-px]'))return m.remove();const l=ev.target.closest('[data-pl]'),d=ev.target.closest('[data-pd]');if(l){loadVals(card,list[+l.dataset.pl].vals);m.remove();toast('Preset loaded')}if(d){list.splice(+d.dataset.pd,1);store.set('fpresets',all);m.remove()}}});
 
 shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
