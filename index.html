@@ -586,6 +586,7 @@ input.warnin{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 @media (min-width:861px){.top{flex-wrap:nowrap}.top .searchbtn.wide{flex:0 1 260px;min-width:150px}}
 @media (max-width:1560px){.top #saved{display:none}.unitsw .eyebrow{display:none}}
 @media (max-width:1100px) and (min-width:861px){.instbtn span{display:none}.top .wellpick .eyebrow{display:none}}
+.native .top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
 </style>
 <div id="root"></div>
 <script type="application/json" id="formula-data">
@@ -3464,7 +3465,7 @@ const DISMISS=new Set();
 /* ================= 16. Install prompt: add to home screen / desktop on start-up ================= */
 const INST={evt:null};
 const SITE='https://drillmaster.dxvisionapp.com/';
-const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches||navigator.standalone===true;
+const isStandalone=()=>!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches||navigator.standalone===true;
 const inFrame=()=>{try{return window.self!==window.top}catch(e){return true}};
 const plat=()=>{const u=navigator.userAgent;const ios=/iPad|iPhone|iPod/.test(u)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const android=/Android/.test(u);const edge=/Edg\//.test(u);const samsung=/SamsungBrowser/.test(u);const firefox=/Firefox|FxiOS/.test(u);const chrome=/Chrome|CriOS/.test(u)&&!edge&&!samsung;const safari=/Safari/.test(u)&&!/Chrome|CriOS|FxiOS|Edg/.test(u);const mac=/Macintosh/.test(u)&&!ios;
   return{ios,android,edge,samsung,firefox,chrome,safari,mac,mobile:ios||android}};
@@ -3498,6 +3499,24 @@ function installSheet(force){if(isStandalone()){if(force)toast('DrillMaster is a
 /* top-bar install button and Settings entry */
 (()=>{const sh0=shell;shell=function(){sh0.apply(this,arguments);const tb=$('#themeBtn');if(tb&&!$('#instBtn')&&!isStandalone()){const b=document.createElement('button');b.id='instBtn';b.className='btn sm instbtn';b.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Install app</span>';b.onclick=()=>installSheet(true);tb.before(b)}}})();
 (()=>{const s0=PAGES.settings;PAGES.settings=v=>{s0(v);if(isStandalone())return;const c=document.createElement('div');c.className='card row';c.style.justifyContent='space-between';c.innerHTML='<div><h3>Install the app</h3><p class="muted" style="font-size:14px">Add DrillMaster to your home screen or desktop so it opens in one tap and works offline.</p></div><button class="btn pri" id="setInst">Install DrillMaster</button>';const ph=$('.pagehead',v);(ph?ph.nextSibling:null)?v.insertBefore(c,ph.nextSibling):v.prepend(c);$('#setInst').onclick=()=>installSheet(true)}})();
+/* ================= 17. Native app support (Capacitor: Android and iOS store builds) ================= */
+const NATIVE=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+if(NATIVE){
+  document.documentElement.classList.add('native');
+  // already an installed app: never show the install prompt or button
+  try{localStorage.setItem('dmp:installed','1')}catch(e){}
+  // save files through the share sheet (WhatsApp, Drive, email, Files…)
+  const P=window.Capacitor.Plugins||{};
+  const toB64=data=>new Promise((res,rej)=>{const blob=data instanceof Blob?data:new Blob([data]);const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+  const s0=saveFile;
+  saveFile=async function(filename,data){if(!P.Filesystem||!P.Share)return s0(filename,data);
+    try{const b64=await toB64(data);const w=await P.Filesystem.writeFile({path:filename,data:b64,directory:'CACHE'});await P.Share.share({title:filename,files:[w.uri],dialogTitle:'Save or send '+filename})}
+    catch(e){if(!/cancel/i.test(String(e&&e.message||e)))toast('Could not save '+filename)}};
+  // status bar matches the dark theme
+  try{if(P.StatusBar){P.StatusBar.setBackgroundColor&&P.StatusBar.setBackgroundColor({color:'#121212'});P.StatusBar.setStyle&&P.StatusBar.setStyle({style:'DARK'})}}catch(e){}
+  // Android back button goes back through pages instead of closing the app
+  try{if(P.App)P.App.addListener('backButton',({canGoBack})=>{if($('.modal')){$$('.modal').forEach(m=>m.remove());return}if(location.hash&&location.hash!=='#home')history.back();else P.App.exitApp()})}catch(e){}
+}
 
 shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
