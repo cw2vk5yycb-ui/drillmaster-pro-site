@@ -587,6 +587,12 @@ input.warnin{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 @media (max-width:1560px){.top #saved{display:none}.unitsw .eyebrow{display:none}}
 @media (max-width:1100px) and (min-width:861px){.instbtn span{display:none}.top .wellpick .eyebrow{display:none}}
 .native .top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.instfeat.nolist li::before{content:"✕";color:var(--crit)}
+.rsw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.08);cursor:pointer;padding:0}
+.rsw i{position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#bbb;transition:transform .2s}
+.rsw[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}.rsw[aria-checked="true"] i{transform:translateX(20px);background:#fff}
+.fbst{font-size:34px;min-width:48px;min-height:48px}
+.rsheet .card{width:min(620px,100%)}
 </style>
 <div id="root"></div>
 <script type="application/json" id="formula-data">
@@ -3517,6 +3523,91 @@ if(NATIVE){
   // Android back button goes back through pages instead of closing the app
   try{if(P.App)P.App.addListener('backButton',({canGoBack})=>{if($('.modal')){$$('.modal').forEach(m=>m.remove());return}if(location.hash&&location.hash!=='#home')history.back();else P.App.exitApp()})}catch(e){}
 }
+/* ================= 18. Opt-in research: anonymous usage, user profile, feedback ================= */
+/* Data goes to the owner's Google Sheet (Apps Script web app). Nothing is sent without consent; well data is never sent. */
+let RESEARCH_URL=(()=>{try{return localStorage.getItem('dmp:rurl')||''}catch(e){return''}})(); // Apps Script /exec URL, read from the website's config.json
+(async()=>{try{const last=+localStorage.getItem('dmp:rurlAt')||0;if(Date.now()-last<6*36e5&&RESEARCH_URL)return;const base=(location.protocol.startsWith('http')&&/dxvisionapp\.com$/.test(location.hostname))?'./':SITE;
+  const r=await fetch(base+'config.json',{cache:'no-store'});if(!r.ok)return;const c=await r.json();const u=String(c.research||'');if(!u||/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)){RESEARCH_URL=u;localStorage.setItem('dmp:rurl',u);localStorage.setItem('dmp:rurlAt',String(Date.now()))}}catch(e){}})();
+const APP_VER='1.0';
+const RS=Object.assign({consent:null,id:null,profile:null,contact:false,asked:0},(()=>{try{return JSON.parse(localStorage.getItem('dmp:research')||'{}')}catch(e){return{}}})());
+const rsSave=()=>{try{localStorage.setItem('dmp:research',JSON.stringify(RS))}catch(e){}};
+if(!RS.id){RS.id='u-'+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));rsSave()}
+const RQ={q:(()=>{try{return JSON.parse(localStorage.getItem('dmp:rq')||'[]')}catch(e){return[]}})()};
+const rqSave=()=>{try{localStorage.setItem('dmp:rq',JSON.stringify(RQ.q.slice(-400)))}catch(e){}};
+const devType=()=>{const w=Math.min(screen.width,screen.height);return w<600?'phone':w<1024?'tablet':'desktop'};
+const osName=()=>{const u=navigator.userAgent;return /Android/.test(u)?'Android':/iPhone|iPad|iPod/.test(u)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)?'iOS':/Windows/.test(u)?'Windows':/Mac/.test(u)?'macOS':/Linux/.test(u)?'Linux':'Other'};
+const platformName=()=>window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()?'app-'+(window.Capacitor.getPlatform?window.Capacitor.getPlatform():'native'):(typeof isStandalone==='function'&&isStandalone()?'installed-web':'web');
+const META=()=>({id:RS.id,v:APP_VER,plat:platformName(),os:osName(),dev:devType(),lang:S.lang||'en',units:S.sys,tz:(Intl.DateTimeFormat().resolvedOptions().timeZone||'')});
+/* track(): only when consent is true; only names of screens and features, never values the user typed */
+function track(ev,props){if(RS.consent!==true)return;RQ.q.push({t:new Date().toISOString(),ev,...(props||{})});if(RQ.q.length>400)RQ.q.splice(0,RQ.q.length-400);rqSave()}
+function sendRaw(kind,rows){if(!RESEARCH_URL||!rows.length)return false;const body=JSON.stringify({kind,meta:META(),rows});
+  try{if(navigator.sendBeacon&&body.length<60000&&navigator.sendBeacon(RESEARCH_URL,new Blob([body],{type:'text/plain'})))return true}catch(e){}
+  try{fetch(RESEARCH_URL,{method:'POST',mode:'no-cors',keepalive:body.length<60000,headers:{'Content-Type':'text/plain'},body});return true}catch(e){return false}}
+function flush(){if(RS.consent!==true||!RQ.q.length||navigator.onLine===false)return;const batch=RQ.q.slice(0,200);if(sendRaw('events',batch)){RQ.q.splice(0,batch.length);rqSave()}}
+setInterval(flush,90000);document.addEventListener('visibilitychange',()=>{if(document.hidden){if(SESS.start)track('session_end',{secs:Math.round((Date.now()-SESS.start)/1000)});SESS.start=0;flush()}else{SESS.start=Date.now();track('session_start')}});
+addEventListener('online',()=>setTimeout(flush,3000));
+const SESS={start:Date.now()};
+/* hooks: screens, formulas, exports, key features */
+(()=>{const r0=render;let last='';render=function(){r0.apply(this,arguments);const k=route();if(k!==last){last=k;track('screen',{s:k})}}})();
+(()=>{const t={};document.addEventListener('input',e=>{const c=e.target.closest&&e.target.closest('.fcard');if(!c||!c.dataset.id)return;const id=c.dataset.id;clearTimeout(t[id]);t[id]=setTimeout(()=>track('formula',{f:id}),4000)},true)})();
+(()=>{const p0=exportPDF,x0=exportXLSX,c0=exportCSV;exportPDF=async function(r){track('export',{type:'pdf',what:(r&&r.file)||''});return p0(r)};exportXLSX=async function(r){track('export',{type:'xlsx',what:(r&&r.file)||''});return x0(r)};exportCSV=async function(r){track('export',{type:'csv',what:(r&&r.file)||''});return c0(r)}})();
+addEventListener('appinstalled',()=>track('installed'));
+addEventListener('error',e=>track('error',{msg:String(e.message||'').slice(0,160),src:String(e.filename||'').split('/').pop()+':'+(e.lineno||0)}));
+setTimeout(()=>{track('session_start');track('daily',{wells:WELLS.length,pins:(S.pins||[]).length})},4000);
+
+/* ---------- consent and profile ---------- */
+const ROLES=['Driller','Assistant driller','Toolpusher / rig manager','Drilling engineer','Drilling supervisor / company man','Mud engineer','Cementing engineer','Directional driller / MWD','Well control instructor','Student / trainee','Other'];
+const COMPANY=['Operator (oil and gas company)','Drilling contractor','Service company','Consultancy','University / training centre','Other'];
+const ENV=['Onshore','Offshore','Both','Office / not on a rig'];
+const EXP=['Under 2 years','2–5 years','5–10 years','10–20 years','Over 20 years'];
+const COUNTRIES=['India','United Kingdom','United States','Canada','Saudi Arabia','United Arab Emirates','Qatar','Kuwait','Oman','Nigeria','Egypt','Norway','Netherlands','Brazil','Mexico','Indonesia','Malaysia','Australia','Kazakhstan','Russia','China','Other'];
+function consentSheet(){if($('.rsheet'))return;const m=document.createElement('div');m.className='modal rsheet instsheet';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Help improve DrillMaster');
+  m.innerHTML=`<div class="card"><div class="insthead"><div class="insticon">${LOGO}</div><div><div class="eyebrow">Optional · you can change this any time</div><h2>Help shape DrillMaster</h2><p class="muted">Share anonymous usage so we know which tools matter on the rig, and build the right features next.</p></div></div>
+  <div class="grid g2" style="gap:10px"><div class="inststeps"><div class="eyebrow" style="color:var(--ok)">What we would see</div><ul class="instfeat" style="margin-top:8px"><li>Which screens and formulas are used</li><li>Device type, app version, units, language</li><li>Your role and region, only if you add them</li></ul></div>
+  <div class="inststeps"><div class="eyebrow" style="color:var(--crit)">Never collected</div><ul class="instfeat nolist" style="margin-top:8px"><li>Well names, depths, pressures or any values you type</li><li>Photos, notes or reports</li><li>Your GPS location</li></ul></div></div>
+  <button class="btn pri big" data-rs="yes">Yes, share anonymous usage</button><button class="btn" data-rs="profile">Yes, and add my role (30 seconds)</button>
+  <div class="row" style="justify-content:space-between"><a href="${SITE}privacy.html" target="_blank" rel="noopener" style="font-size:13px">Privacy policy</a><button class="btn ghost sm" data-rs="no">No thanks</button></div></div>`;
+  document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-rs]');if(!b)return;const k=b.dataset.rs;RS.asked=Date.now();RS.consent=k!=='no';rsSave();m.remove();
+    if(RS.consent){track('consent',{on:true});setTimeout(flush,1500);toast('Thank you. You can change this in Settings → Privacy and research.')}if(k==='profile')profileForm()}}
+function profileForm(){const p=RS.profile||{};const m=document.createElement('div');m.className='modal rsheet instsheet';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
+  const sel=(id,label,opts,val)=>`<label class="fld"><span>${label}</span><select id="${id}"><option value="">Prefer not to say</option>${opts.map(o=>`<option${o===val?' selected':''}>${esc(o)}</option>`).join('')}</select></label>`;
+  m.innerHTML=`<div class="card"><h2>About you</h2><p class="muted" style="font-size:14px">Every answer is optional. It helps decide which modules, units and languages to build next.</p>
+  <div class="fields" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${sel('pfRole','Your role',ROLES,p.role)}${sel('pfCo','Company type',COMPANY,p.co)}${sel('pfEnv','Where you work',ENV,p.env)}${sel('pfExp','Experience',EXP,p.exp)}${sel('pfCty','Country',COUNTRIES,p.cty)}</div>
+  <label class="fld"><span>Email (optional, only if you agree to be contacted)</span><input id="pfMail" type="email" value="${esc(p.mail||'')}" placeholder="name@example.com"></label>
+  <label class="chk"><input type="checkbox" id="pfOk"${RS.contact?' checked':''}><span>You may email me about DrillMaster research and new features. I can withdraw at any time.</span></label>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" data-pf="x">Cancel</button><button class="btn pri" data-pf="ok">Save</button></div></div>`;
+  document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-pf]');if(!b)return;if(b.dataset.pf==='x')return m.remove();
+    const mail=$('#pfMail',m).value.trim(),ok=$('#pfOk',m).checked;if(mail&&!ok)return toast('Tick the box to agree to be contacted, or leave email empty');if(mail&&!/^\S+@\S+\.\S+$/.test(mail))return toast('Check the email address');
+    RS.profile={role:$('#pfRole',m).value,co:$('#pfCo',m).value,env:$('#pfEnv',m).value,exp:$('#pfExp',m).value,cty:$('#pfCty',m).value,mail:ok?mail:''};RS.contact=ok&&!!mail;if(RS.consent!==true)RS.consent=true;rsSave();
+    sendRaw('profile',[{t:new Date().toISOString(),...RS.profile,contact:RS.contact}]);m.remove();toast('Profile saved. Thank you!')}}
+/* ask once, after the tutorial and lock screen; before the install prompt */
+(()=>{let n=0;const go=()=>{if(RS.consent!==null||++n>30)return;if($('.modal.tut')||$('.lockscr')||$('.modal:not(.rsheet)')){setTimeout(go,1500);return}consentSheet()};setTimeout(go,1200)})();
+
+/* ---------- feedback page ---------- */
+PAGES.feedback=v=>{const planned=RM.filter(r=>r[2]==='P'||r[2]==='D').slice(0,40);let stars=0;const votes=new Set();
+  v.innerHTML=head('Feedback and ideas','Tell the developer what works, what does not, and what to build next. Your message goes straight to the research sheet; it never includes your well data.')+
+  `<div class="split"><div class="card stack"><h3>How useful is DrillMaster?</h3><div class="row" id="fbStars" role="radiogroup" aria-label="Rating">${[1,2,3,4,5].map(i=>`<button class="star fbst" data-st="${i}" role="radio" aria-checked="false" aria-label="${i} star${i>1?'s':''}">★</button>`).join('')}</div>
+    <label class="fld"><span>What should we improve or fix?</span><textarea id="fbTxt" placeholder="e.g. Add a casing tally, the kill sheet needs a deviated-well option…" style="min-height:140px"></textarea></label>
+    <label class="fld"><span>Which module do you use most?</span><select id="fbMod"><option value="">—</option>${Object.keys(TITLES).filter(k=>k!=='home').map(k=>`<option value="${k}">${esc(TITLES[k])}</option>`).join('')}</select></label>
+    <button class="btn pri" id="fbSend">Send feedback</button>${RESEARCH_URL?'':'<p class="muted" style="font-size:13px">Saved on this device and sent when research collection is switched on.</p>'}</div>
+  <div class="card stack"><h3>Vote for what comes next</h3><p class="muted" style="font-size:14px">Pick up to five.</p><div class="stack" style="gap:6px;max-height:520px;overflow:auto">${planned.map(r=>`<label class="chk"><input type="checkbox" data-vote="${r[0]}"><span>${esc(r[1])}</span></label>`).join('')}</div></div></div>`;
+  v.onclick=e=>{const s=e.target.closest('[data-st]');if(s){stars=+s.dataset.st;$$('.fbst',v).forEach(b=>{const on=+b.dataset.st<=stars;b.setAttribute('aria-pressed',on);b.setAttribute('aria-checked',+b.dataset.st===stars)})}};
+  v.onchange=e=>{const c=e.target.closest('[data-vote]');if(!c)return;if(c.checked){if(votes.size>=5){c.checked=false;return toast('Up to five votes')}votes.add(c.dataset.vote)}else votes.delete(c.dataset.vote)};
+  $('#fbSend').onclick=()=>{const txt=$('#fbTxt').value.trim();if(!stars&&!txt&&!votes.size)return toast('Add a rating, a comment or a vote');const row={t:new Date().toISOString(),stars,text:txt.slice(0,2000),most:$('#fbMod').value,votes:[...votes].join(',')};
+    if(!sendRaw('feedback',[row])){const pend=JSON.parse(localStorage.getItem('dmp:fbq')||'[]');pend.push(row);localStorage.setItem('dmp:fbq',JSON.stringify(pend))}toast('Thank you for your feedback!');location.hash='#home'}};
+setTimeout(()=>{try{const pend=JSON.parse(localStorage.getItem('dmp:fbq')||'[]');if(pend.length&&sendRaw('feedback',pend))localStorage.removeItem('dmp:fbq')}catch(e){}},8000);
+
+/* ---------- Settings: privacy and research ---------- */
+(()=>{const s0=PAGES.settings;PAGES.settings=v=>{s0(v);const c=document.createElement('div');c.className='card stack';c.id='rsCard';
+  const draw=()=>{c.innerHTML=`<div class="row" style="justify-content:space-between"><div><h3>Privacy and research</h3><p class="muted" style="font-size:14px">Anonymous usage helps the developer decide what to build. Well data, values you type, photos and location are never sent.</p></div><button type="button" role="switch" id="rsSw" class="rsw" aria-checked="${RS.consent===true}" aria-label="Share anonymous usage"><i></i></button></div>
+    <dl class="kv" style="font-size:13.5px"><dt>Anonymous ID</dt><dd class="mono" style="user-select:all">${esc(RS.id)}</dd><dt>Waiting to send</dt><dd>${RQ.q.length} events</dd><dt>Profile</dt><dd>${RS.profile&&RS.profile.role?esc(RS.profile.role):'Not added'}</dd></dl>
+    <div class="row"><button class="btn sm" id="rsProf">${RS.profile?'Edit':'Add'} my profile</button><button class="btn sm" id="rsView">See what is sent</button><a class="btn sm" href="#feedback">Send feedback</a><button class="btn sm ghost danger" id="rsDel">Delete my research data</button></div>`;
+    $('#rsSw',c).onclick=()=>{RS.consent=RS.consent!==true;RS.asked=Date.now();rsSave();if(!RS.consent){RQ.q=[];rqSave()}else track('consent',{on:true});toast(RS.consent?'Anonymous usage on':'Anonymous usage off');draw()};
+    $('#rsProf',c).onclick=profileForm;
+    $('#rsView',c).onclick=()=>{const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card" style="width:min(640px,100%)"><h2>What is sent</h2><p class="muted" style="font-size:13px">Device details sent with every batch, then the queued events:</p><pre style="max-height:50vh;overflow:auto;font:12px/1.5 var(--f-mono);white-space:pre-wrap;background:var(--bg);padding:10px;border-radius:8px">${esc(JSON.stringify({meta:META(),events:RQ.q.slice(-30)},null,1))}</pre><button class="btn" data-x>Close</button></div>`;document.body.appendChild(m);m.onclick=e=>{if(e.target===m||e.target.closest('[data-x]'))m.remove()}};
+    $('#rsDel',c).onclick=async()=>{if(!(await ask({title:'Delete my research data?',msg:'Sends a deletion request for anonymous ID '+RS.id+', turns sharing off and creates a new ID.',ok:'Delete',danger:true})))return;sendRaw('delete',[{t:new Date().toISOString(),id:RS.id}]);RQ.q=[];rqSave();RS.consent=false;RS.profile=null;RS.contact=false;RS.id='u-'+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36));rsSave();toast('Deletion requested');draw()}};
+  draw();const ph=$('.pagehead',v);ph&&ph.nextSibling?v.insertBefore(c,ph.nextSibling):v.prepend(c)}})();
+(()=>{const t=NAV.find(x=>x[0]==='Tools');if(t&&!t[1].find(x=>x[0]==='feedback'))t[1].splice(t[1].length-1,0,['feedback','Feedback and ideas']);TITLES.feedback='Feedback and ideas';MODG.feedback='Tools';DESC.feedback='Rate the app, suggest fixes and vote for features';Object.assign(HI,{'Feedback and ideas':'प्रतिक्रिया और सुझाव'})})();
 
 shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
