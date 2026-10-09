@@ -569,6 +569,23 @@ input.warnin{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 @media (max-width:480px){.ovs b{font-size:18px}.qnum{width:132px}}
 @media (min-width:861px){.app.railed #view,.app.railed #histbox{max-width:1640px}}
 @media (max-width:860px){.top .searchbtn.wide{flex:0 0 46px;width:46px;margin-left:0}.top .wellpick{flex:1 1 auto;min-width:0}.top .unitsw{gap:0}.top #metSw{width:50px;height:30px}.top #metSw i{width:24px;height:24px}.top #metSw[aria-checked="true"] i{transform:translateX(20px)}}
+/* install sheet */
+.instsheet .card{width:min(480px,100%);position:relative;gap:16px;max-height:92vh;overflow:auto}
+.instx{position:absolute;top:10px;right:10px;min-height:38px;width:38px}
+.insthead{display:flex;gap:14px;align-items:flex-start;padding-right:30px}
+.insticon{flex:none;width:64px;height:64px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(150deg,rgba(255,107,0,.28),rgba(255,107,0,.06));border:1px solid rgba(255,107,0,.4)}
+.insticon svg{width:44px;height:44px}
+.insthead h2{font-size:22px;margin:4px 0}.insthead p{font-size:14px}
+.instfeat{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.instfeat li{display:flex;gap:10px;align-items:flex-start}.instfeat li::before{content:"✓";color:var(--ok);font-weight:700}
+.btn.big{min-height:54px;font-size:16px;width:100%}
+.inststeps{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.03)}
+.inststeps ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14.5px;line-height:1.45}
+.instbtn{border-color:rgba(255,107,0,.5);color:var(--accent);order:2}
+@media (max-width:860px){.instsheet{align-items:flex-end;padding:0}.instsheet .card{width:100%;border-radius:20px 20px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}.instbtn span{display:none}.instbtn{min-height:44px;padding:0 12px}}
+@media (min-width:861px){.top{flex-wrap:nowrap}.top .searchbtn.wide{flex:0 1 260px;min-width:150px}}
+@media (max-width:1560px){.top #saved{display:none}.unitsw .eyebrow{display:none}}
+@media (max-width:1100px) and (min-width:861px){.instbtn span{display:none}.top .wellpick .eyebrow{display:none}}
 </style>
 <div id="root"></div>
 <script type="application/json" id="formula-data">
@@ -3444,6 +3461,43 @@ const DISMISS=new Set();
   paint();const id=setInterval(()=>{const lp=LIVE.pts[LIVE.pts.length-1];const e=$('#dRop',sec);if(lp&&e)e.innerHTML=`${DN('rop',lp.rop,sys,1)}<small> ${U('rop')}</small>`},2000);cleanup.push(()=>clearInterval(id));
 }})();
 (()=>{const ov=NAV.find(x=>x[0]==='Overview');if(ov&&!ov[1].find(x=>x[0]==='history'))ov[1].push(['history','History']);TITLES.history='History';MODG.history='Overview';DESC.history='Every calculation you have made, ready to reopen';TITLES.home='Dashboard';const h=ov&&ov[1].find(x=>x[0]==='home');if(h)h[1]='Dashboard';Object.assign(HI,{Dashboard:'डैशबोर्ड',History:'इतिहास',Calculations:'गणनाएँ'})})();
+/* ================= 16. Install prompt: add to home screen / desktop on start-up ================= */
+const INST={evt:null};
+const SITE='https://drillmaster.dxvisionapp.com/';
+const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches||navigator.standalone===true;
+const inFrame=()=>{try{return window.self!==window.top}catch(e){return true}};
+const plat=()=>{const u=navigator.userAgent;const ios=/iPad|iPhone|iPod/.test(u)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const android=/Android/.test(u);const edge=/Edg\//.test(u);const samsung=/SamsungBrowser/.test(u);const firefox=/Firefox|FxiOS/.test(u);const chrome=/Chrome|CriOS/.test(u)&&!edge&&!samsung;const safari=/Safari/.test(u)&&!/Chrome|CriOS|FxiOS|Edg/.test(u);const mac=/Macintosh/.test(u)&&!ios;
+  return{ios,android,edge,samsung,firefox,chrome,safari,mac,mobile:ios||android}};
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();INST.evt=e;const b=$('#instBtn');if(b)b.hidden=false;const p=$('.instsheet [data-inst-go]');if(p)p.hidden=false});
+addEventListener('appinstalled',()=>{INST.evt=null;try{localStorage.setItem('dmp:installed','1')}catch(e){}$$('.instsheet').forEach(x=>x.remove());const b=$('#instBtn');if(b)b.hidden=true;toast('DrillMaster installed. Open it from your home screen or desktop.')});
+function steps(p){const share='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg>';const dots='<b>⋮</b>';
+  if(p.ios)return[`Tap the <b>Share</b> button ${share} at the ${p.chrome?'top right':'bottom'} of ${p.chrome?'Chrome':'Safari'}.`,'Scroll down and tap <b>Add to Home Screen</b>.','Tap <b>Add</b>. DrillMaster appears on your home screen like any app.'];
+  if(p.android&&p.samsung)return['Tap the menu <b>≡</b> at the bottom right.','Tap <b>Add page to</b> → <b>Home screen</b>.','Tap <b>Add</b>.'];
+  if(p.android&&p.firefox)return[`Tap the menu ${dots} in Firefox.`,'Tap <b>Install</b> (or <b>Add to Home screen</b>).','Confirm with <b>Add</b>.'];
+  if(p.android)return[`Tap the menu ${dots} at the top right of Chrome.`,'Tap <b>Install app</b> (or <b>Add to Home screen</b>).','Tap <b>Install</b>. The app icon appears on your home screen.'];
+  if(p.mac&&p.safari)return['In Safari, open the <b>File</b> menu (or the Share button).','Choose <b>Add to Dock</b>.','DrillMaster opens from the Dock and Launchpad like a normal app.'];
+  if(p.edge)return['Click the <b>App available</b> icon in the address bar, or open the menu <b>…</b>.','Choose <b>Apps</b> → <b>Install DrillMaster</b>.','It opens in its own window and appears in the Start menu and on the desktop.'];
+  if(p.firefox)return['Firefox on computers cannot install web apps.','Open '+SITE.replace('https://','')+' in <b>Chrome</b> or <b>Edge</b>, then click the install icon in the address bar.','Or bookmark this page with <b>Ctrl + D</b> (⌘ + D on Mac).'];
+  return['Click the <b>install icon</b> at the right of the address bar (a screen with a down arrow), or open the menu <b>⋮</b>.','Choose <b>Cast, save and share</b> → <b>Install page as app</b> (or <b>Install DrillMaster</b>).','It opens in its own window and gets a desktop and Start menu shortcut.']}
+function installSheet(force){if(isStandalone()){if(force)toast('DrillMaster is already installed on this device');return}
+  if(!force){try{if(localStorage.getItem('dmp:installed')||localStorage.getItem('dmp:instNever'))return;const t=+localStorage.getItem('dmp:instLater')||0;if(Date.now()-t<3*864e5)return}catch(e){return}}
+  if($('.instsheet'))return;const p=plat();const frame=inFrame();const m=document.createElement('div');m.className='modal instsheet';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Install DrillMaster');
+  m.innerHTML=`<div class="card"><button class="btn icon ghost instx" data-inst-x aria-label="Close">✕</button>
+    <div class="insthead"><div class="insticon">${LOGO}</div><div><div class="eyebrow">Free app · works offline</div><h2>Install DrillMaster Pro</h2><p class="muted">Save it to your ${p.mobile?'home screen':'desktop'} and open it in one tap, full screen, even with no signal on the rig.</p></div></div>
+    <ul class="instfeat"><li>Opens instantly like a native app</li><li>Kill sheet, trip sheet and formulas work with no internet</li><li>Your well data stays on your device</li></ul>
+    ${frame?`<div class="note info">You are viewing DrillMaster inside another page, which cannot install apps. Open the website, then install it from there.</div><a class="btn pri big" href="${SITE}" target="_blank" rel="noopener">Open ${SITE.replace('https://','').replace(/\/$/,'')}</a>`
+      :`<button class="btn pri big" data-inst-go${INST.evt?'':' hidden'}>${p.mobile?'Add to home screen':'Install on this computer'}</button>
+      <div class="inststeps"${INST.evt?' hidden':''}><div class="eyebrow">${p.ios?'iPhone and iPad':p.android?'Android':'On this computer'}</div><ol>${steps(p).map(s=>`<li>${s}</li>`).join('')}</ol></div>`}
+    <div class="row" style="justify-content:space-between"><button class="btn ghost sm" data-inst-never>Don’t show again</button><button class="btn sm" data-inst-later>Maybe later</button></div></div>`;
+  document.body.appendChild(m);
+  m.onclick=async e=>{const t=e.target;if(t===m||t.closest('[data-inst-x],[data-inst-later]')){try{localStorage.setItem('dmp:instLater',String(Date.now()))}catch(er){}m.remove();return}
+    if(t.closest('[data-inst-never]')){try{localStorage.setItem('dmp:instNever','1')}catch(er){}m.remove();toast('You can install any time from Settings');return}
+    if(t.closest('[data-inst-go]')&&INST.evt){const ev=INST.evt;INST.evt=null;ev.prompt();try{const r=await ev.userChoice;if(r.outcome==='accepted'){m.remove()}else{$('.inststeps',m).hidden=false;t.closest('[data-inst-go]').hidden=true}}catch(er){}}}}
+/* show on start-up, after the tutorial and the lock screen are out of the way */
+(()=>{let tries=0;const go=()=>{if(++tries>40)return;if($('.modal.tut')||$('.lockscr')||$('.modal:not(.instsheet)')){setTimeout(go,1500);return}installSheet(false)};setTimeout(go,2500)})();
+/* top-bar install button and Settings entry */
+(()=>{const sh0=shell;shell=function(){sh0.apply(this,arguments);const tb=$('#themeBtn');if(tb&&!$('#instBtn')&&!isStandalone()){const b=document.createElement('button');b.id='instBtn';b.className='btn sm instbtn';b.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Install app</span>';b.onclick=()=>installSheet(true);tb.before(b)}}})();
+(()=>{const s0=PAGES.settings;PAGES.settings=v=>{s0(v);if(isStandalone())return;const c=document.createElement('div');c.className='card row';c.style.justifyContent='space-between';c.innerHTML='<div><h3>Install the app</h3><p class="muted" style="font-size:14px">Add DrillMaster to your home screen or desktop so it opens in one tap and works offline.</p></div><button class="btn pri" id="setInst">Install DrillMaster</button>';const ph=$('.pagehead',v);(ph?ph.nextSibling:null)?v.insertBefore(c,ph.nextSibling):v.prepend(c);$('#setInst').onclick=()=>installSheet(true)}})();
 
 shell();render();try{if(lockCfg())showLock();armIdle()}catch(e){}try{if(!localStorage.getItem('dmp:tutorial'))setTimeout(tutorial,600)}catch(e){}
 })();
